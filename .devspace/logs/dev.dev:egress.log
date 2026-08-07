@@ -1,0 +1,113 @@
+{"level":"info","msg":"dev:egress Waiting for pod to become ready...","time":"2026-08-07T20:52:38+02:00"}
+{"level":"info","msg":"dev:egress Selected pod egress-f7c6467c7-5stl5","time":"2026-08-07T20:52:41+02:00"}
+{"level":"info","msg":"dev:egress sync  Sync started on: ./ \u003c-\u003e /opt/app/data","time":"2026-08-07T20:52:44+02:00"}
+{"level":"info","msg":"dev:egress sync  Waiting for initial sync to complete","time":"2026-08-07T20:52:44+02:00"}
+{"level":"info","msg":"dev:egress sync  Initial sync completed","time":"2026-08-07T20:52:46+02:00"}
+{"level":"info","msg":"dev:egress Waiting for pod to become ready...","time":"2026-08-07T20:54:52+02:00"}
+{"level":"info","msg":"dev:egress Selected pod egress-5fccbbdddd-kt2hh","time":"2026-08-07T20:54:53+02:00"}
+{"level":"info","msg":"dev:egress sync  Sync started on: ./ \u003c-\u003e /opt/app/data","time":"2026-08-07T20:54:55+02:00"}
+{"level":"info","msg":"dev:egress sync  Waiting for initial sync to complete","time":"2026-08-07T20:54:55+02:00"}
+{"level":"info","msg":"dev:egress sync  Initial sync completed","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:54:58+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:02+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:05+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:09+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:12+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:16+02:00"}
+{"level":"info","msg":"dev:egress logs  Streaming logs of pod:container egress-5fccbbdddd-kt2hh:egress","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: buf generate third_party/agynio-api --path third_party/agynio-api/proto/agynio/api/egress/v1 --path third_party/agynio-api/proto/agynio/api/authorization/v1 --path third_party/agynio-api/proto/agynio/api/secrets/v1 --path third_party/agynio-api/proto/agynio/api/notifications/v1 --path third_party/agynio-api/proto/agynio/api/identity/v1 --path third_party/agynio-api/proto/agynio/api/ziti_management/v1","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgx/v5 v5.8.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/grpc v1.79.1","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/protobuf v1.36.11","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/google/uuid v1.6.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/puddle/v2 v2.2.2","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/net v0.48.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgpassfile v1.0.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/text v0.32.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sync v0.19.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: go: downloading golang.org/x/sys v0.39.0","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  egress: failed to create fsnotify watcher: too many open files","time":"2026-08-07T20:55:19+02:00"}
+{"level":"info","msg":"dev:egress logs  Restarting because: logs: lost connection to pod","time":"2026-08-07T20:55:19+02:00"}

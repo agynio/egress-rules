@@ -382,6 +382,7 @@ func (f *fakeAuthorizationClient) checked(expected string) bool {
 }
 
 type fakeRuleStore struct {
+	rulesByEnvironment   []store.Rule
 	rule                 store.Rule
 	rules                []store.Rule
 	attachments          []store.Attachment
@@ -414,6 +415,9 @@ func (f *fakeRuleStore) ListAllRules(context.Context) ([]store.Rule, error) {
 }
 func (f *fakeRuleStore) ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error) {
 	return nil, nil
+}
+func (f *fakeRuleStore) ListRulesByEnvironment(context.Context, uuid.UUID) ([]store.Rule, error) {
+	return f.rulesByEnvironment, nil
 }
 func (f *fakeRuleStore) DeleteRule(context.Context, uuid.UUID) error { return nil }
 func (f *fakeRuleStore) CountAttachmentsByRule(context.Context, uuid.UUID) (int32, error) {

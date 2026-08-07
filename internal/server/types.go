@@ -21,6 +21,7 @@ type ruleStore interface {
 	ListRules(context.Context, uuid.UUID, int32, *store.PageCursor) (store.RuleListResult, error)
 	ListAllRules(context.Context) ([]store.Rule, error)
 	ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error)
+	ListRulesByEnvironment(context.Context, uuid.UUID) ([]store.Rule, error)
 	DeleteRule(context.Context, uuid.UUID) error
 	CountAttachmentsByRule(context.Context, uuid.UUID) (int32, error)
 	CreateAttachment(context.Context, store.Attachment) error

@@ -1,0 +1,175 @@
+version: v2beta1
+
+vars:
+  EGRESS_NAMESPACE: platform
+  EGRESS_SELECTOR: app.kubernetes.io/name=egress
+
+functions:
+  patch_deployment: |-
+    echo "Patching egress deployment for DevSpace..."
+    deployment_name="$(kubectl get deployment -n "${EGRESS_NAMESPACE}" \
+      -l "${EGRESS_SELECTOR}" \
+      -o jsonpath='{.items[0].metadata.name}')"
+    if [ -z "$deployment_name" ]; then
+      echo "ERROR: egress deployment not found for selector ${EGRESS_SELECTOR}" >&2
+      exit 1
+    fi
+    kubectl patch deployment "$deployment_name" -n "${EGRESS_NAMESPACE}" --type strategic --patch "$(cat <<'EOF'
+    spec:
+      template:
+        spec:
+          securityContext:
+            runAsUser: 1000
+            fsGroup: 1000
+          initContainers: []
+          volumes:
+            - name: data
+              emptyDir: {}
+          containers:
+            - name: egress
+              image: ghcr.io/agynio/devcontainer-go:1 # dev container for source deploy
+              workingDir: /opt/app/data
+              livenessProbe: null
+              readinessProbe: null
+              startupProbe: null
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  elapsed=0
+                  while [ ! -f /opt/app/data/go.mod ]; do
+                    sleep 1; elapsed=$((elapsed + 1))
+                    [ "$elapsed" -ge 120 ] && { echo "ERROR: sync timeout" >&2; exit 1; }
+                  done
+                  make proto
+                  exec go run ./cmd/egress
+              volumeMounts:
+                - name: data
+                  mountPath: /opt/app/data
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                readOnlyRootFilesystem: false
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+    EOF
+    )"
+
+pipelines:
+  dev:
+    flags:
+      - name: watch
+        short: w
+        description: "Keep DevSpace running and stream logs"
+    run: |-
+      patch_deployment
+      if [ "$(get_flag "watch")" == "true" ]; then
+        start_dev --disable-pod-replace egress
+      else
+        start_dev --disable-pod-replace egress
+        echo "Waiting for egress to be healthy on :50051..."
+        healthy=false
+        pod_name=""
+        container_name=""
+        for _ in $(seq 1 150); do
+          pod_name="$(kubectl get pod -n "${EGRESS_NAMESPACE}" \
+            -l "${EGRESS_SELECTOR}" \
+            --field-selector=status.phase=Running \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+          if [ -z "$pod_name" ]; then
+            kubectl get pods -n "${EGRESS_NAMESPACE}" -l "${EGRESS_SELECTOR}" -o wide || true
+            sleep 2
+            continue
+          fi
+          container_name="$(kubectl get pod -n "${EGRESS_NAMESPACE}" "$pod_name" \
+            -o jsonpath='{.spec.containers[0].name}' 2>/dev/null || true)"
+          if [ -z "$container_name" ]; then
+            echo "ERROR: Could not resolve container name for pod $pod_name" >&2
+            kubectl get pod -n "${EGRESS_NAMESPACE}" "$pod_name" -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}' || true
+            sleep 2
+            continue
+          fi
+          if kubectl exec -n "${EGRESS_NAMESPACE}" "$pod_name" -c "$container_name" -- bash -c 'echo >/dev/tcp/127.0.0.1/50051' >/dev/null 2>&1; then
+            healthy=true
+            break
+          fi
+          echo "Authorization health check failed in pod $pod_name container $container_name; pod containers:" >&2
+          kubectl get pod -n "${EGRESS_NAMESPACE}" "$pod_name" -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}' || true
+          sleep 2
+        done
+        if [ "$healthy" != "true" ]; then
+          echo "ERROR: Authorization did not become healthy within 300s" >&2
+          if [ -n "$pod_name" ] && [ -n "$container_name" ]; then
+            kubectl logs -n "${EGRESS_NAMESPACE}" "$pod_name" -c "$container_name" --tail=50 || true
+          fi
+          exit 1
+        fi
+        echo "Dev environment ready. Stopping dev session."
+        stop_dev egress
+      fi
+
+
+dev:
+  egress:
+    namespace: ${EGRESS_NAMESPACE}
+    labelSelector:
+      app.kubernetes.io/name: egress
+    containers:
+      egress:
+        container: egress
+        sync:
+          - path: ./:/opt/app/data
+            excludePaths:
+              - .git/
+              - .github/
+              - .devspace/
+              - /.gen/
+              - /bootstrap/
+              - /bin/
+              - /build/
+              - /coverage/
+              - /dist/
+              - /node_modules/
+              - /vendor/
+              - /tmp/
+            uploadExcludePaths:
+              - .git/
+              - .github/
+              - .devspace/
+              - /.gen/
+              - /bootstrap/
+              - /bin/
+              - /build/
+              - /coverage/
+              - /dist/
+              - /node_modules/
+              - /vendor/
+              - /tmp/
+            downloadExcludePaths:
+              - .git/
+              - .github/
+              - .devspace/
+              - /.gen/
+              - /bootstrap/
+              - /bin/
+              - /build/
+              - /coverage/
+              - /dist/
+              - /node_modules/
+              - /vendor/
+              - /tmp/
+        logs:
+          enabled: true
+          lastLines: 200

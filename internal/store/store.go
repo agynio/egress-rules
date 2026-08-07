@@ -147,6 +147,24 @@ func (s *Store) ListAllRules(ctx context.Context) ([]Rule, error) {
 	return rules, nil
 }
 
+func (s *Store) ListRulesByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]Rule, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s
+		FROM egress_rules r
+		JOIN egress_rule_attachments a ON a.rule_id = r.id
+		WHERE a.environment_id = $1
+		ORDER BY r.id ASC`, prefixedRuleColumns("r")), environmentID)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by environment: %w", err)
+	}
+	defer rows.Close()
+	rules, err := collectRules(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by environment: %w", err)
+	}
+	return rules, nil
+}
+
 func (s *Store) ListRulesByAgent(ctx context.Context, agentID uuid.UUID) ([]Rule, error) {
 	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s

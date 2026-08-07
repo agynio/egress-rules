@@ -352,6 +352,20 @@ func (s *Server) ListEgressRuleAttachments(ctx context.Context, req *egressv1.Li
 	return &egressv1.ListEgressRuleAttachmentsResponse{EgressRuleAttachments: attachmentsToProto(result.Attachments), NextPageToken: store.EncodePageCursor(result.NextCursor)}, nil
 }
 
+// Internal-only, like the agent lookup: the Egress Gateway calls it on cache
+// miss for a workload running an environment, sandboxes included.
+func (s *Server) ListEgressRulesByEnvironment(ctx context.Context, req *egressv1.ListEgressRulesByEnvironmentRequest) (*egressv1.ListEgressRulesByEnvironmentResponse, error) {
+	environmentID, err := parseUUID(req.GetEnvironmentId(), "environment_id")
+	if err != nil {
+		return nil, err
+	}
+	rules, err := s.store.ListRulesByEnvironment(ctx, environmentID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &egressv1.ListEgressRulesByEnvironmentResponse{EgressRules: rulesToProto(rules)}, nil
+}
+
 func (s *Server) ListEgressRulesByAgent(ctx context.Context, req *egressv1.ListEgressRulesByAgentRequest) (*egressv1.ListEgressRulesByAgentResponse, error) {
 	agentID, err := parseUUID(req.GetAgentId(), "agent_id")
 	if err != nil {

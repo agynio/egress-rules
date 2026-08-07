@@ -17,12 +17,15 @@ const (
 	identityObjectPrefix     = "identity:"
 	organizationObjectPrefix = "organization:"
 	agentObjectPrefix        = "agent:"
+	environmentObjectPrefix  = "environment:"
 
-	organizationMemberRelation = "member"
-	organizationOwnerRelation  = "owner"
-	agentCanEditConfigRelation = "can_edit_config"
-	agentCanReadConfigRelation = "can_read_config"
-	agentOrgRelation           = "org"
+	organizationMemberRelation       = "member"
+	organizationOwnerRelation        = "owner"
+	agentCanEditConfigRelation       = "can_edit_config"
+	agentCanReadConfigRelation       = "can_read_config"
+	agentOrgRelation                 = "org"
+	environmentCanEditConfigRelation = "can_edit_config"
+	environmentOrgRelation           = "org"
 )
 
 func identityFromMetadata(ctx context.Context) (uuid.UUID, error) {
@@ -55,6 +58,27 @@ func (s *Server) requireAgentConfigEdit(ctx context.Context, identityID uuid.UUI
 
 func (s *Server) requireAgentConfigRead(ctx context.Context, identityID uuid.UUID, agentID uuid.UUID) error {
 	return s.requireRelation(ctx, identityID, agentCanReadConfigRelation, agentObject(agentID))
+}
+
+func (s *Server) requireEnvironmentConfigEdit(ctx context.Context, identityID uuid.UUID, environmentID uuid.UUID) error {
+	return s.requireRelation(ctx, identityID, environmentCanEditConfigRelation, environmentObject(environmentID))
+}
+
+func (s *Server) requireEnvironmentInOrganization(ctx context.Context, organizationID uuid.UUID, environmentID uuid.UUID) error {
+	resp, err := s.authorizationClient.Check(ctx, &authorizationv1.CheckRequest{
+		TupleKey: &authorizationv1.TupleKey{
+			User:     organizationObject(organizationID),
+			Relation: environmentOrgRelation,
+			Object:   environmentObject(environmentID),
+		},
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "authorization check: %v", err)
+	}
+	if !resp.GetAllowed() {
+		return status.Error(codes.PermissionDenied, "environment does not belong to rule organization")
+	}
+	return nil
 }
 
 func (s *Server) requireAgentInOrganization(ctx context.Context, organizationID uuid.UUID, agentID uuid.UUID) error {
@@ -97,6 +121,10 @@ func identityObject(id uuid.UUID) string {
 
 func organizationObject(id uuid.UUID) string {
 	return organizationObjectPrefix + id.String()
+}
+
+func environmentObject(id uuid.UUID) string {
+	return environmentObjectPrefix + id.String()
 }
 
 func agentObject(id uuid.UUID) string {

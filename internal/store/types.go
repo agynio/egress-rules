@@ -106,13 +106,22 @@ func RuleToProto(rule Rule) *egressv1.EgressRule {
 }
 
 func AttachmentToProto(attachment Attachment) *egressv1.EgressRuleAttachment {
-	return &egressv1.EgressRuleAttachment{
+	proto := &egressv1.EgressRuleAttachment{
 		Meta: &egressv1.EntityMeta{
 			Id:        attachment.ID.String(),
 			CreatedAt: timestamppb.New(attachment.CreatedAt),
 			UpdatedAt: timestamppb.New(attachment.UpdatedAt),
 		},
-		RuleId:  attachment.RuleID.String(),
-		AgentId: attachment.AgentID.String(),
+		RuleId: attachment.RuleID.String(),
 	}
+	if attachment.EnvironmentID != nil {
+		proto.Target = &egressv1.EgressRuleAttachment_EnvironmentId{EnvironmentId: attachment.EnvironmentID.String()}
+		return proto
+	}
+	if attachment.AgentID != nil {
+		// agent_id stays populated for a client reading the deprecated field.
+		proto.AgentId = attachment.AgentID.String()
+		proto.Target = &egressv1.EgressRuleAttachment_AgentTargetId{AgentTargetId: attachment.AgentID.String()}
+	}
+	return proto
 }

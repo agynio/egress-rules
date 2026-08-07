@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
 	zitimanagementv1 "github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1"
@@ -237,9 +238,13 @@ func servicePolicyMatchesAttachment(policy *zitimanagementv1.OpenZitiServicePoli
 	if policy == nil {
 		return false
 	}
-	return policy.GetName() == egressDialPolicyName(attachment.RuleID, attachment.AgentID) &&
+	target, err := targetForAttachment(attachment)
+	if err != nil {
+		return false
+	}
+	return policy.GetName() == egressDialPolicyName(attachment.RuleID, target) &&
 		policy.GetType() == zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL &&
-		stringSlicesEqual(policy.GetIdentityRoles(), []string{agentRole(attachment.AgentID)}) &&
+		stringSlicesEqual(policy.GetIdentityRoles(), []string{target.identityRole()}) &&
 		stringSlicesEqual(policy.GetServiceRoles(), []string{zitiServiceIDRole(serviceID)})
 }
 
@@ -296,4 +301,47 @@ func portRangesFromPorts(ports []int32) []*zitimanagementv1.PortRange {
 		ranges = append(ranges, &zitimanagementv1.PortRange{Low: port, High: port})
 	}
 	return ranges
+}
+
+const (
+	targetKindAgent       = "agent"
+	targetKindEnvironment = "environment"
+)
+
+// attachmentTargetFromRequest reads the one target a create request names. The
+// deprecated agent_id is still accepted so an older client keeps working.
+func attachmentTargetFromRequest(req *egressv1.CreateEgressRuleAttachmentRequest) (attachmentTarget, error) {
+	if environmentID := strings.TrimSpace(req.GetEnvironmentId()); environmentID != "" {
+		id, err := parseUUID(environmentID, "environment_id")
+		if err != nil {
+			return attachmentTarget{}, err
+		}
+		return attachmentTarget{kind: targetKindEnvironment, id: id}, nil
+	}
+	agentValue := strings.TrimSpace(req.GetAgentTargetId())
+	if agentValue == "" {
+		agentValue = strings.TrimSpace(req.GetAgentId())
+	}
+	if agentValue == "" {
+		return attachmentTarget{}, status.Error(codes.InvalidArgument, "one of environment_id or agent_target_id is required")
+	}
+	id, err := parseUUID(agentValue, "agent_target_id")
+	if err != nil {
+		return attachmentTarget{}, err
+	}
+	return attachmentTarget{kind: targetKindAgent, id: id}, nil
+}
+
+func (s *Server) requireTargetConfigEdit(ctx context.Context, callerID uuid.UUID, target attachmentTarget) error {
+	if target.kind == targetKindEnvironment {
+		return s.requireEnvironmentConfigEdit(ctx, callerID, target.id)
+	}
+	return s.requireAgentConfigEdit(ctx, callerID, target.id)
+}
+
+func (s *Server) requireTargetInOrganization(ctx context.Context, organizationID uuid.UUID, target attachmentTarget) error {
+	if target.kind == targetKindEnvironment {
+		return s.requireEnvironmentInOrganization(ctx, organizationID, target.id)
+	}
+	return s.requireAgentInOrganization(ctx, organizationID, target.id)
 }

@@ -268,7 +268,7 @@ func TestDuplicateAttachmentReturnsAlreadyExistsWithoutPolicyCleanup(t *testing.
 	agentID := uuid.New()
 	attachmentID := uuid.New()
 	organizationID := uuid.New()
-	existing := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, OpenZitiDialPolicyID: "existing-policy", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	existing := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: &agentID, OpenZitiDialPolicyID: "existing-policy", CreatedAt: time.Now(), UpdatedAt: time.Now()}
 
 	storeFake := &fakeRuleStore{
 		rule:           store.Rule{ID: ruleID, OrganizationID: organizationID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}, Effect: allowEffect()},
@@ -437,6 +437,12 @@ func (f *fakeRuleStore) GetAttachment(context.Context, uuid.UUID) (store.Attachm
 	return attachment, nil
 }
 func (f *fakeRuleStore) GetAttachmentByRuleAndAgent(context.Context, uuid.UUID, uuid.UUID) (store.Attachment, error) {
+	if f.existingByPair == nil {
+		return store.Attachment{}, store.ErrAttachmentNotFound
+	}
+	return *f.existingByPair, nil
+}
+func (f *fakeRuleStore) GetAttachmentByRuleAndTarget(context.Context, uuid.UUID, string, uuid.UUID) (store.Attachment, error) {
 	if f.existingByPair == nil {
 		return store.Attachment{}, store.ErrAttachmentNotFound
 	}

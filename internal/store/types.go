@@ -29,10 +29,13 @@ type Rule struct {
 }
 
 // Attachment is the persisted egress rule attachment model.
+// Attachment targets exactly one of an agent or an environment; the other id
+// is nil.
 type Attachment struct {
 	ID                   uuid.UUID
 	RuleID               uuid.UUID
-	AgentID              uuid.UUID
+	AgentID              *uuid.UUID
+	EnvironmentID        *uuid.UUID
 	OpenZitiDialPolicyID string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time

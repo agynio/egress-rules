@@ -24,12 +24,43 @@ func egressServiceName(ruleID uuid.UUID) string {
 	return fmt.Sprintf("egress-rule-%s", ruleID)
 }
 
-func egressDialPolicyName(ruleID uuid.UUID, agentID uuid.UUID) string {
-	return fmt.Sprintf("egress-rule-%s-agent-%s-dial", ruleID, agentID)
+func egressDialPolicyName(ruleID uuid.UUID, target attachmentTarget) string {
+	return fmt.Sprintf("egress-rule-%s-%s-%s-dial", ruleID, target.kind, target.id)
 }
 
 func agentRole(agentID uuid.UUID) string {
 	return fmt.Sprintf("#agent-%s", agentID)
+}
+
+func environmentRole(environmentID uuid.UUID) string {
+	return fmt.Sprintf("#environment-%s", environmentID)
+}
+
+// attachmentTarget is the one entity an attachment binds a rule to. The
+// Orchestrator stamps the matching role attribute on every workload identity it
+// creates -- agent workloads and sandboxes alike -- so the dial policy admits
+// whatever runs under the target.
+type attachmentTarget struct {
+	kind string
+	id   uuid.UUID
+}
+
+func targetForAttachment(attachment store.Attachment) (attachmentTarget, error) {
+	switch {
+	case attachment.EnvironmentID != nil:
+		return attachmentTarget{kind: "environment", id: *attachment.EnvironmentID}, nil
+	case attachment.AgentID != nil:
+		return attachmentTarget{kind: "agent", id: *attachment.AgentID}, nil
+	default:
+		return attachmentTarget{}, fmt.Errorf("attachment %s has no target", attachment.ID)
+	}
+}
+
+func (t attachmentTarget) identityRole() string {
+	if t.kind == "environment" {
+		return environmentRole(t.id)
+	}
+	return agentRole(t.id)
 }
 
 func zitiServiceIDRole(serviceID string) string {
@@ -99,15 +130,15 @@ func (s *Server) deleteRuleService(ctx context.Context, serviceID string) error 
 	return nil
 }
 
-func (s *Server) provisionAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID, serviceID string) (string, error) {
-	return s.createAttachmentPolicy(ctx, ruleID, agentID, serviceID, true)
+func (s *Server) provisionAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, target attachmentTarget, serviceID string) (string, error) {
+	return s.createAttachmentPolicy(ctx, ruleID, target, serviceID, true)
 }
 
-func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID, serviceID string, returnExisting bool) (string, error) {
+func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, target attachmentTarget, serviceID string, returnExisting bool) (string, error) {
 	resp, err := s.zitiClient.CreateServicePolicy(ctx, &zitimanagementv1.CreateServicePolicyRequest{
 		Type:           zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
-		Name:           egressDialPolicyName(ruleID, agentID),
-		IdentityRoles:  []string{agentRole(agentID)},
+		Name:           egressDialPolicyName(ruleID, target),
+		IdentityRoles:  []string{target.identityRole()},
 		ServiceRoles:   []string{zitiServiceIDRole(serviceID)},
 		ReturnExisting: returnExisting,
 	})
@@ -122,14 +153,18 @@ func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, a
 }
 
 func (s *Server) reconcileAttachmentPolicy(ctx context.Context, attachment store.Attachment, serviceID string) (string, error) {
+	target, err := targetForAttachment(attachment)
+	if err != nil {
+		return "", err
+	}
 	policyID := attachment.OpenZitiDialPolicyID
 	if policyID == "" {
-		return s.provisionAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID, serviceID)
+		return s.provisionAttachmentPolicy(ctx, attachment.RuleID, target, serviceID)
 	}
 	resp, err := s.zitiClient.GetServicePolicy(ctx, &zitimanagementv1.GetServicePolicyRequest{ZitiServicePolicyId: policyID})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return s.provisionAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID, serviceID)
+			return s.provisionAttachmentPolicy(ctx, attachment.RuleID, target, serviceID)
 		}
 		return "", status.Errorf(codes.Internal, "get egress rule dial policy: %v", err)
 	}
@@ -143,7 +178,11 @@ func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.A
 	if err := s.deleteAttachmentPolicy(ctx, attachment.OpenZitiDialPolicyID); err != nil {
 		return "", err
 	}
-	return s.createAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID, serviceID, false)
+	target, err := targetForAttachment(attachment)
+	if err != nil {
+		return "", err
+	}
+	return s.createAttachmentPolicy(ctx, attachment.RuleID, target, serviceID, false)
 }
 
 func (s *Server) deleteAttachmentPolicy(ctx context.Context, policyID string) error {

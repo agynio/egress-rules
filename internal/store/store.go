@@ -15,7 +15,7 @@ import (
 
 const (
 	ruleColumns       = `id, organization_id, name, description, matcher, effect, openziti_service_id, created_at, updated_at`
-	attachmentColumns = `id, rule_id, agent_id, openziti_dial_policy_id, created_at, updated_at`
+	attachmentColumns = `id, rule_id, agent_id, environment_id, openziti_dial_policy_id, created_at, updated_at`
 )
 
 // Store persists egress rules and attachments.
@@ -147,6 +147,24 @@ func (s *Store) ListAllRules(ctx context.Context) ([]Rule, error) {
 	return rules, nil
 }
 
+func (s *Store) ListRulesByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]Rule, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s
+		FROM egress_rules r
+		JOIN egress_rule_attachments a ON a.rule_id = r.id
+		WHERE a.environment_id = $1
+		ORDER BY r.id ASC`, prefixedRuleColumns("r")), environmentID)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by environment: %w", err)
+	}
+	defer rows.Close()
+	rules, err := collectRules(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by environment: %w", err)
+	}
+	return rules, nil
+}
+
 func (s *Store) ListRulesByAgent(ctx context.Context, agentID uuid.UUID) ([]Rule, error) {
 	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
@@ -190,11 +208,12 @@ func (s *Store) CountAttachmentsByRule(ctx context.Context, ruleID uuid.UUID) (i
 
 func (s *Store) CreateAttachment(ctx context.Context, attachment Attachment) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO egress_rule_attachments (id, rule_id, agent_id, openziti_dial_policy_id)
-		VALUES ($1, $2, $3, $4)`,
+		INSERT INTO egress_rule_attachments (id, rule_id, agent_id, environment_id, openziti_dial_policy_id)
+		VALUES ($1, $2, $3, $4, $5)`,
 		attachment.ID,
 		attachment.RuleID,
 		attachment.AgentID,
+		attachment.EnvironmentID,
 		attachment.OpenZitiDialPolicyID,
 	)
 	if err != nil {
@@ -232,6 +251,17 @@ func (s *Store) ListAllAttachments(ctx context.Context) ([]Attachment, error) {
 
 func (s *Store) GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error) {
 	row := s.pool.QueryRow(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments WHERE id = $1`, attachmentColumns), id)
+	return scanAttachment(row)
+}
+
+// GetAttachmentByRuleAndTarget finds the attachment binding a rule to one
+// target, whichever kind it is.
+func (s *Store) GetAttachmentByRuleAndTarget(ctx context.Context, ruleID uuid.UUID, kind string, targetID uuid.UUID) (Attachment, error) {
+	column := "agent_id"
+	if kind == "environment" {
+		column = "environment_id"
+	}
+	row := s.pool.QueryRow(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments WHERE rule_id = $1 AND %s = $2`, attachmentColumns, column), ruleID, targetID)
 	return scanAttachment(row)
 }
 
@@ -357,6 +387,7 @@ func scanAttachment(row pgx.Row) (Attachment, error) {
 		&attachment.ID,
 		&attachment.RuleID,
 		&attachment.AgentID,
+		&attachment.EnvironmentID,
 		&attachment.OpenZitiDialPolicyID,
 		&attachment.CreatedAt,
 		&attachment.UpdatedAt,

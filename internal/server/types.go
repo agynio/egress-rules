@@ -21,12 +21,14 @@ type ruleStore interface {
 	ListRules(context.Context, uuid.UUID, int32, *store.PageCursor) (store.RuleListResult, error)
 	ListAllRules(context.Context) ([]store.Rule, error)
 	ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error)
+	ListRulesByEnvironment(context.Context, uuid.UUID) ([]store.Rule, error)
 	DeleteRule(context.Context, uuid.UUID) error
 	CountAttachmentsByRule(context.Context, uuid.UUID) (int32, error)
 	CreateAttachment(context.Context, store.Attachment) error
 	UpdateAttachmentPolicyID(context.Context, uuid.UUID, string) error
 	GetAttachment(context.Context, uuid.UUID) (store.Attachment, error)
 	GetAttachmentByRuleAndAgent(context.Context, uuid.UUID, uuid.UUID) (store.Attachment, error)
+	GetAttachmentByRuleAndTarget(context.Context, uuid.UUID, string, uuid.UUID) (store.Attachment, error)
 	ListAllAttachments(context.Context) ([]store.Attachment, error)
 	ListAttachments(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID, int32, *store.PageCursor) (store.AttachmentListResult, error)
 	DeleteAttachment(context.Context, uuid.UUID) error

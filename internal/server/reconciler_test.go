@@ -21,7 +21,7 @@ func TestReconcileReplacesAttachmentPolicyUsingZitiServiceID(t *testing.T) {
 		Effect:            allowEffect(),
 		OpenZitiServiceID: "ziti-service-id",
 	}
-	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, OpenZitiDialPolicyID: "old-policy-id", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: &agentID, OpenZitiDialPolicyID: "old-policy-id", CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	storeFake := &fakeRuleStore{rules: []store.Rule{rule}, attachments: []store.Attachment{attachment}}
 	zitiFake := &fakeZitiManagementClient{
 		ruleID:    ruleID,
@@ -29,7 +29,7 @@ func TestReconcileReplacesAttachmentPolicyUsingZitiServiceID(t *testing.T) {
 		policyID:  "new-policy-id",
 		servicePolicy: &zitimanagementv1.OpenZitiServicePolicy{
 			ZitiServicePolicyId: "old-policy-id",
-			Name:                egressDialPolicyName(ruleID, agentID),
+			Name:                egressDialPolicyName(ruleID, attachmentTarget{kind: targetKindAgent, id: agentID}),
 			Type:                zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
 			IdentityRoles:       []string{agentRole(agentID)},
 			ServiceRoles:        []string{zitiServiceIDRole("stale-ziti-service-id")},
@@ -62,7 +62,7 @@ func TestReconcileProvisionsMissingRuleServiceBeforeAttachmentPolicy(t *testing.
 	agentID := uuid.New()
 	attachmentID := uuid.New()
 	rule := store.Rule{ID: ruleID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}}, Effect: allowEffect()}
-	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: &agentID, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	storeFake := &fakeRuleStore{rules: []store.Rule{rule}, attachments: []store.Attachment{attachment}}
 	zitiFake := &fakeZitiManagementClient{serviceID: "created-ziti-service-id", policyID: "new-policy-id"}
 	srv := New(Options{Store: storeFake, ZitiClient: zitiFake})

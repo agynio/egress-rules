@@ -203,7 +203,7 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err != nil {
 		return nil, err
 	}
-	agentID, err := parseUUID(req.GetAgentId(), "agent_id")
+	target, err := attachmentTargetFromRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -214,13 +214,13 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err := s.requireOrgMember(ctx, callerID, rule.OrganizationID); err != nil {
 		return nil, err
 	}
-	if err := s.requireAgentConfigEdit(ctx, callerID, agentID); err != nil {
+	if err := s.requireTargetConfigEdit(ctx, callerID, target); err != nil {
 		return nil, err
 	}
-	if err := s.requireAgentInOrganization(ctx, rule.OrganizationID, agentID); err != nil {
+	if err := s.requireTargetInOrganization(ctx, rule.OrganizationID, target); err != nil {
 		return nil, err
 	}
-	if _, err := s.store.GetAttachmentByRuleAndAgent(ctx, ruleID, agentID); err == nil {
+	if _, err := s.store.GetAttachmentByRuleAndTarget(ctx, ruleID, target.kind, target.id); err == nil {
 		return nil, toStatusError(store.ErrAttachmentExists)
 	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
 		return nil, toStatusError(err)
@@ -234,12 +234,19 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 			return nil, toStatusError(err)
 		}
 	}
-	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID, serviceID)
+	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, target, serviceID)
 	if err != nil {
 		return nil, err
 	}
 	attachmentID := uuid.New()
-	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, OpenZitiDialPolicyID: policyID}
+	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, OpenZitiDialPolicyID: policyID}
+	if target.kind == targetKindEnvironment {
+		id := target.id
+		attachment.EnvironmentID = &id
+	} else {
+		id := target.id
+		attachment.AgentID = &id
+	}
 	if err := s.store.CreateAttachment(ctx, attachment); err != nil {
 		if cleanupErr := s.deleteAttachmentPolicy(ctx, policyID); cleanupErr != nil {
 			return nil, cleanupErr
@@ -250,7 +257,7 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err != nil {
 		return nil, toStatusError(err)
 	}
-	s.publishAttachmentUpdated(ctx, rule.OrganizationID, ruleID, stored.ID, agentID, "created")
+	s.publishAttachmentUpdated(ctx, rule.OrganizationID, ruleID, stored.ID, target.id, "created")
 	return &egressv1.CreateEgressRuleAttachmentResponse{EgressRuleAttachment: store.AttachmentToProto(stored)}, nil
 }
 
@@ -274,7 +281,11 @@ func (s *Server) DeleteEgressRuleAttachment(ctx context.Context, req *egressv1.D
 	if err := s.requireOrgMember(ctx, callerID, rule.OrganizationID); err != nil {
 		return nil, err
 	}
-	if err := s.requireAgentConfigEdit(ctx, callerID, attachment.AgentID); err != nil {
+	target, err := targetForAttachment(attachment)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if err := s.requireTargetConfigEdit(ctx, callerID, target); err != nil {
 		return nil, err
 	}
 	if err := s.store.DeleteAttachment(ctx, attachmentID); err != nil {
@@ -283,7 +294,7 @@ func (s *Server) DeleteEgressRuleAttachment(ctx context.Context, req *egressv1.D
 	if err := s.deleteAttachmentPolicy(ctx, attachment.OpenZitiDialPolicyID); err != nil {
 		return nil, err
 	}
-	s.publishAttachmentUpdated(ctx, rule.OrganizationID, rule.ID, attachment.ID, attachment.AgentID, "deleted")
+	s.publishAttachmentUpdated(ctx, rule.OrganizationID, rule.ID, attachment.ID, target.id, "deleted")
 	return &egressv1.DeleteEgressRuleAttachmentResponse{}, nil
 }
 
@@ -339,6 +350,20 @@ func (s *Server) ListEgressRuleAttachments(ctx context.Context, req *egressv1.Li
 		return nil, toStatusError(err)
 	}
 	return &egressv1.ListEgressRuleAttachmentsResponse{EgressRuleAttachments: attachmentsToProto(result.Attachments), NextPageToken: store.EncodePageCursor(result.NextCursor)}, nil
+}
+
+// Internal-only, like the agent lookup: the Egress Gateway calls it on cache
+// miss for a workload running an environment, sandboxes included.
+func (s *Server) ListEgressRulesByEnvironment(ctx context.Context, req *egressv1.ListEgressRulesByEnvironmentRequest) (*egressv1.ListEgressRulesByEnvironmentResponse, error) {
+	environmentID, err := parseUUID(req.GetEnvironmentId(), "environment_id")
+	if err != nil {
+		return nil, err
+	}
+	rules, err := s.store.ListRulesByEnvironment(ctx, environmentID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &egressv1.ListEgressRulesByEnvironmentResponse{EgressRules: rulesToProto(rules)}, nil
 }
 
 func (s *Server) ListEgressRulesByAgent(ctx context.Context, req *egressv1.ListEgressRulesByAgentRequest) (*egressv1.ListEgressRulesByAgentResponse, error) {

@@ -1,24 +1,18 @@
-version: v1
+version: v2
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/agynio/egress/.gen/go
 
 plugins:
-  - plugin: go
+  - remote: buf.build/protocolbuffers/go
     out: .gen/go
     opt:
       - paths=source_relative
-      - Magynio/api/egress/v1/egress.proto=github.com/agynio/egress/.gen/go/agynio/api/egress/v1
-      - Magynio/api/authorization/v1/authorization.proto=github.com/agynio/egress/.gen/go/agynio/api/authorization/v1
-      - Magynio/api/secrets/v1/secrets.proto=github.com/agynio/egress/.gen/go/agynio/api/secrets/v1
-      - Magynio/api/notifications/v1/notifications.proto=github.com/agynio/egress/.gen/go/agynio/api/notifications/v1
-      - Magynio/api/ziti_management/v1/ziti_management.proto=github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1
-      - Magynio/api/identity/v1/identity.proto=github.com/agynio/egress/.gen/go/agynio/api/identity/v1
-  - plugin: go-grpc
+  - remote: buf.build/grpc/go
     out: .gen/go
     opt:
       - paths=source_relative
       - require_unimplemented_servers=false
-      - Magynio/api/egress/v1/egress.proto=github.com/agynio/egress/.gen/go/agynio/api/egress/v1
-      - Magynio/api/authorization/v1/authorization.proto=github.com/agynio/egress/.gen/go/agynio/api/authorization/v1
-      - Magynio/api/secrets/v1/secrets.proto=github.com/agynio/egress/.gen/go/agynio/api/secrets/v1
-      - Magynio/api/notifications/v1/notifications.proto=github.com/agynio/egress/.gen/go/agynio/api/notifications/v1
-      - Magynio/api/ziti_management/v1/ziti_management.proto=github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1
-      - Magynio/api/identity/v1/identity.proto=github.com/agynio/egress/.gen/go/agynio/api/identity/v1

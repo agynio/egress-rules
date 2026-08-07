@@ -1,0 +1,14 @@
+{"level":"info","msg":"Inject devspacehelper...","time":"2026-08-07T20:52:42+02:00"}
+{"level":"info","msg":"Successfully injected devspacehelper into pod platform/egress-f7c6467c7-5stl5","time":"2026-08-07T20:52:44+02:00"}
+{"level":"info","msg":"Start syncing","time":"2026-08-07T20:52:44+02:00"}
+{"level":"info","msg":"Downstream - Initial sync completed","time":"2026-08-07T20:52:44+02:00"}
+{"level":"info","msg":"Upstream - Upload 50 create change(s) (Uncompressed ~181.99 KB)","time":"2026-08-07T20:52:45+02:00"}
+{"level":"info","msg":"Upstream - Successfully processed 50 change(s)","time":"2026-08-07T20:52:45+02:00"}
+{"level":"info","msg":"Upstream - Initial sync completed","time":"2026-08-07T20:52:46+02:00"}
+{"level":"info","msg":"Inject devspacehelper...","time":"2026-08-07T20:54:53+02:00"}
+{"level":"info","msg":"Successfully injected devspacehelper into pod platform/egress-5fccbbdddd-kt2hh","time":"2026-08-07T20:54:55+02:00"}
+{"level":"info","msg":"Start syncing","time":"2026-08-07T20:54:55+02:00"}
+{"level":"info","msg":"Downstream - Initial sync completed","time":"2026-08-07T20:54:55+02:00"}
+{"level":"info","msg":"Upstream - Upload 50 create change(s) (Uncompressed ~181.40 KB)","time":"2026-08-07T20:54:56+02:00"}
+{"level":"info","msg":"Upstream - Successfully processed 50 change(s)","time":"2026-08-07T20:54:56+02:00"}
+{"level":"info","msg":"Upstream - Initial sync completed","time":"2026-08-07T20:54:58+02:00"}

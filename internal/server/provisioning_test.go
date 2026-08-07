@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
@@ -58,10 +59,10 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	ruleID := uuid.New()
 	agentID := uuid.New()
 	serviceID := "ziti-service-id"
-	attachment := store.Attachment{RuleID: ruleID, AgentID: agentID}
+	attachment := store.Attachment{RuleID: ruleID, AgentID: &agentID}
 	policy := &zitimanagementv1.OpenZitiServicePolicy{
 		ZitiServicePolicyId: "policy-id",
-		Name:                egressDialPolicyName(ruleID, agentID),
+		Name:                egressDialPolicyName(ruleID, attachmentTarget{kind: targetKindAgent, id: agentID}),
 		Type:                zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
 		IdentityRoles:       []string{agentRole(agentID)},
 		ServiceRoles:        []string{zitiServiceIDRole(serviceID)},
@@ -72,5 +73,30 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	policy.IdentityRoles = []string{"#agent-drift"}
 	if servicePolicyMatchesAttachment(policy, attachment, serviceID) {
 		t.Fatal("expected identity role drift to be detected")
+	}
+}
+
+// An egress rule attached to an environment has to grant the environment role:
+// the Orchestrator stamps it on every workload identity running that
+// environment, agent workloads and sandboxes alike. Granting only the agent
+// role left a sandbox holding nothing the policy admitted, and its intercepted
+// connection was reset.
+func TestEnvironmentAttachmentGrantsTheEnvironmentRole(t *testing.T) {
+	ruleID := uuid.New()
+	environmentID := uuid.New()
+	attachment := store.Attachment{RuleID: ruleID, EnvironmentID: &environmentID}
+
+	target, err := targetForAttachment(attachment)
+	if err != nil {
+		t.Fatalf("target for attachment: %v", err)
+	}
+	if target.kind != targetKindEnvironment {
+		t.Fatalf("expected an environment target, got %q", target.kind)
+	}
+	if got, want := target.identityRole(), "#environment-"+environmentID.String(); got != want {
+		t.Fatalf("expected role %q, got %q", want, got)
+	}
+	if name := egressDialPolicyName(ruleID, target); !strings.Contains(name, "environment-"+environmentID.String()) {
+		t.Fatalf("policy name does not name the environment: %s", name)
 	}
 }

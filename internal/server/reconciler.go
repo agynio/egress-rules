@@ -127,7 +127,11 @@ func (s *Server) deleteOrphanServices(ctx context.Context, rules []store.Rule) e
 func (s *Server) deleteOrphanServicePolicies(ctx context.Context, attachments []store.Attachment) error {
 	managedNames := map[string]struct{}{}
 	for _, attachment := range attachments {
-		managedNames[egressDialPolicyName(attachment.RuleID, attachment.AgentID)] = struct{}{}
+		target, err := targetForAttachment(attachment)
+		if err != nil {
+			continue
+		}
+		managedNames[egressDialPolicyName(attachment.RuleID, target)] = struct{}{}
 	}
 	pageToken := ""
 	for {

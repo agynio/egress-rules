@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
 	"github.com/google/uuid"
@@ -434,8 +435,15 @@ func prefixedRuleColumns(prefix string) string {
 	return fmt.Sprintf(`%s.id, %s.organization_id, %s.name, %s.description, %s.matcher, %s.effect, %s.openziti_service_id, %s.created_at, %s.updated_at`, prefix, prefix, prefix, prefix, prefix, prefix, prefix, prefix, prefix)
 }
 
+// Derived from attachmentColumns rather than repeated: both feed scanAttachment,
+// and a column added to one list but not the other selects a different number of
+// values than the scan expects.
 func prefixedAttachmentColumns(prefix string) string {
-	return fmt.Sprintf(`%s.id, %s.rule_id, %s.agent_id, %s.openziti_dial_policy_id, %s.created_at, %s.updated_at`, prefix, prefix, prefix, prefix, prefix, prefix)
+	columns := strings.Split(attachmentColumns, ", ")
+	for i, column := range columns {
+		columns[i] = prefix + "." + column
+	}
+	return strings.Join(columns, ", ")
 }
 
 func isUniqueViolation(err error) bool {

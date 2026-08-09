@@ -166,16 +166,16 @@ metrics:
 
 internalAuthorizationPolicy:
   enabled: true
+  # Named rather than spelled out as principals: a principal embeds the
+  # namespace, and this chart does not know which one it is installed into.
+  # namespace defaults to the release's; set it only for a caller that genuinely
+  # lives elsewhere.
   rules:
     - paths:
         - /agynio.api.egress.v1.EgressRulesService/ListEgressRulesByAgent
-      from:
-        - source:
-            principals:
-              - cluster.local/ns/platform/sa/egress-gateway
+      serviceAccounts:
+        - name: egress-gateway
     - paths:
         - /agynio.api.egress.v1.EgressRulesService/CountRulesReferencingSecret
-      from:
-        - source:
-            principals:
-              - cluster.local/ns/platform/sa/secrets
+      serviceAccounts:
+        - name: secrets

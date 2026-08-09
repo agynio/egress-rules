@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidateMatcherRejectsReservedPatterns(t *testing.T) {
-	for _, pattern := range []string{"*.ziti", "api.svc", "db.ns.svc", "api.cluster.local", "100.64.0.1", "100.64.0.0/24"} {
+	for _, pattern := range []string{"*.agyn", "api.svc", "db.ns.svc", "api.cluster.local", "100.64.0.1", "100.64.0.0/24"} {
 		t.Run(pattern, func(t *testing.T) {
 			_, err := validateMatcher(&egressv1.EgressRuleMatcher{DomainPattern: pattern})
 			if err == nil {

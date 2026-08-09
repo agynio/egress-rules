@@ -75,7 +75,7 @@ func validateMatcher(matcher *egressv1.EgressRuleMatcher) (*egressv1.EgressRuleM
 }
 
 func rejectReservedDomainPattern(domainPattern string) error {
-	reservedSuffixes := []string{".ziti", ".svc", ".cluster.local"}
+	reservedSuffixes := []string{".agyn", ".svc", ".cluster.local"}
 	trimmedWildcard := strings.TrimPrefix(domainPattern, "*.")
 	for _, suffix := range reservedSuffixes {
 		if trimmedWildcard == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(trimmedWildcard, suffix) {

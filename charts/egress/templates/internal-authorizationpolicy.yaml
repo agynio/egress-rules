@@ -1,4 +1,5 @@
 {{- if .Values.internalAuthorizationPolicy.enabled -}}
+{{- $namespace := .Release.Namespace -}}
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -21,7 +22,15 @@ spec:
 {{- end }}
 {{- range .Values.internalAuthorizationPolicy.rules }}
     - from:
+{{- if .serviceAccounts }}
+        - source:
+            principals:
+{{- range .serviceAccounts }}
+              - cluster.local/ns/{{ .namespace | default $namespace }}/sa/{{ .name }}
+{{- end }}
+{{- else }}
 {{ toYaml .from | nindent 8 }}
+{{- end }}
       to:
         - operation:
             paths:

@@ -85,7 +85,7 @@ func TestValidateRuleInputRejectsNoopEffect(t *testing.T) {
 	organizationID := uuid.New().String()
 	matcher := &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}
 	for _, effect := range []*egressv1.EgressRuleEffect{nil, {}, {Action: egressv1.EgressRuleAction_EGRESS_RULE_ACTION_UNSPECIFIED.Enum()}} {
-		_, err := validateRuleInput(organizationID, "rule", "", matcher, effect)
+		_, err := validateRuleInput(organizationID, "rule", "", matcher, effect, nil)
 		if err == nil {
 			t.Fatalf("expected no-op effect %#v to fail", effect)
 		}
@@ -96,10 +96,10 @@ func TestValidateRuleInputAllowsMeaningfulEffect(t *testing.T) {
 	organizationID := uuid.New().String()
 	matcher := &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}
 	allow := egressv1.EgressRuleAction_EGRESS_RULE_ACTION_ALLOW
-	if _, err := validateRuleInput(organizationID, "rule", "", matcher, &egressv1.EgressRuleEffect{Action: &allow}); err != nil {
+	if _, err := validateRuleInput(organizationID, "rule", "", matcher, &egressv1.EgressRuleEffect{Action: &allow}, nil); err != nil {
 		t.Fatalf("allow effect rejected: %v", err)
 	}
-	if _, err := validateRuleInput(organizationID, "rule", "", matcher, &egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{{Name: "X-Token", Credential: &egressv1.EgressRuleHeader_Value{Value: "token"}}}}); err != nil {
+	if _, err := validateRuleInput(organizationID, "rule", "", matcher, &egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{{Name: "X-Token", Credential: &egressv1.EgressRuleHeader_Value{Value: "token"}}}}, nil); err != nil {
 		t.Fatalf("header injection effect rejected: %v", err)
 	}
 }

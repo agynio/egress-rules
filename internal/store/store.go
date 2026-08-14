@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	ruleColumns       = `id, organization_id, name, description, matcher, effect, openziti_service_id, created_at, updated_at`
+	ruleColumns       = `id, organization_id, name, description, matcher, effect, upstream_tls, openziti_service_id, created_at, updated_at`
 	attachmentColumns = `id, rule_id, agent_id, environment_id, openziti_dial_policy_id, created_at, updated_at`
 )
 
@@ -37,15 +37,20 @@ func (s *Store) CreateRule(ctx context.Context, rule Rule) error {
 	if err != nil {
 		return fmt.Errorf("marshal effect: %w", err)
 	}
+	upstreamTLSJSON, err := marshalUpstreamTLS(rule.UpstreamTLS)
+	if err != nil {
+		return err
+	}
 	_, err = s.pool.Exec(ctx, `
-		INSERT INTO egress_rules (id, organization_id, name, description, matcher, effect, openziti_service_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		INSERT INTO egress_rules (id, organization_id, name, description, matcher, effect, upstream_tls, openziti_service_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		rule.ID,
 		rule.OrganizationID,
 		rule.Name,
 		rule.Description,
 		matcherJSON,
 		effectJSON,
+		upstreamTLSJSON,
 		rule.OpenZitiServiceID,
 	)
 	if err != nil {
@@ -66,15 +71,20 @@ func (s *Store) UpdateRule(ctx context.Context, rule Rule) error {
 	if err != nil {
 		return fmt.Errorf("marshal effect: %w", err)
 	}
+	upstreamTLSJSON, err := marshalUpstreamTLS(rule.UpstreamTLS)
+	if err != nil {
+		return err
+	}
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE egress_rules
-		SET name = $2, description = $3, matcher = $4, effect = $5, openziti_service_id = $6, updated_at = NOW()
+		SET name = $2, description = $3, matcher = $4, effect = $5, upstream_tls = $6, openziti_service_id = $7, updated_at = NOW()
 		WHERE id = $1`,
 		rule.ID,
 		rule.Name,
 		rule.Description,
 		matcherJSON,
 		effectJSON,
+		upstreamTLSJSON,
 		rule.OpenZitiServiceID,
 	)
 	if err != nil {
@@ -105,10 +115,20 @@ func (s *Store) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
 	return scanRule(row)
 }
 
-func (s *Store) ListRules(ctx context.Context, organizationID uuid.UUID, pageSize int32, cursor *PageCursor) (RuleListResult, error) {
+func (s *Store) ListRules(ctx context.Context, organizationID uuid.UUID, filter RuleListFilter, pageSize int32, cursor *PageCursor) (RuleListResult, error) {
 	limit := NormalizePageSize(pageSize)
 	args := []any{organizationID}
 	query := fmt.Sprintf(`SELECT %s FROM egress_rules WHERE organization_id = $1`, ruleColumns)
+	if filter.PrivateResourceID != nil {
+		args = append(args, filter.PrivateResourceID.String())
+		query += fmt.Sprintf(" AND %s = $%d", matcherPrivateResourceIDExpr, len(args))
+	}
+	switch filter.TargetKind {
+	case TargetKindPublic:
+		query += fmt.Sprintf(" AND %s IS NULL", matcherPrivateResourceIDExpr)
+	case TargetKindPrivate:
+		query += fmt.Sprintf(" AND %s IS NOT NULL", matcherPrivateResourceIDExpr)
+	}
 	if cursor != nil {
 		args = append(args, cursor.AfterID)
 		query += fmt.Sprintf(" AND id > $%d", len(args))
@@ -330,6 +350,8 @@ func (s *Store) CountRulesReferencingSecret(ctx context.Context, secretID uuid.U
 			SELECT 1 FROM jsonb_array_elements(effect->'inject') header
 			WHERE header->>'secretId' = $1 OR header->>'secret_id' = $1
 		)
+		OR upstream_tls->>'caBundleSecretId' = $1
+		OR upstream_tls->>'ca_bundle_secret_id' = $1
 		ORDER BY id ASC`, secretID.String())
 	if err != nil {
 		return 0, nil, fmt.Errorf("count egress rules referencing secret: %w", err)
@@ -349,10 +371,62 @@ func (s *Store) CountRulesReferencingSecret(ctx context.Context, secretID uuid.U
 	return int32(len(ids)), ids, nil
 }
 
+// protojson wrote camelCase historically; both spellings are checked the way
+// CountRulesReferencingSecret already does.
+const matcherPrivateResourceIDExpr = `COALESCE(matcher->>'privateResourceId', matcher->>'private_resource_id')`
+
+func (s *Store) CountRulesReferencingPrivateResource(ctx context.Context, resourceID uuid.UUID) (int32, []uuid.UUID, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT id FROM egress_rules WHERE %s = $1 ORDER BY id ASC`, matcherPrivateResourceIDExpr), resourceID.String())
+	if err != nil {
+		return 0, nil, fmt.Errorf("count egress rules referencing private resource: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return 0, nil, fmt.Errorf("scan egress rule id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, nil, fmt.Errorf("count egress rules referencing private resource: %w", err)
+	}
+	return int32(len(ids)), ids, nil
+}
+
+func (s *Store) ListMediatedPrivateResourceIDs(ctx context.Context, organizationID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
+		SELECT DISTINCT %s FROM egress_rules
+		WHERE organization_id = $1 AND %s IS NOT NULL
+		ORDER BY 1`, matcherPrivateResourceIDExpr, matcherPrivateResourceIDExpr), organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list mediated private resources: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, fmt.Errorf("scan private resource id: %w", err)
+		}
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list mediated private resources: %w", err)
+	}
+	return ids, nil
+}
+
 func scanRule(row pgx.Row) (Rule, error) {
 	var rule Rule
 	var matcherJSON []byte
 	var effectJSON []byte
+	var upstreamTLSJSON []byte
 	if err := row.Scan(
 		&rule.ID,
 		&rule.OrganizationID,
@@ -360,6 +434,7 @@ func scanRule(row pgx.Row) (Rule, error) {
 		&rule.Description,
 		&matcherJSON,
 		&effectJSON,
+		&upstreamTLSJSON,
 		&rule.OpenZitiServiceID,
 		&rule.CreatedAt,
 		&rule.UpdatedAt,
@@ -379,7 +454,25 @@ func scanRule(row pgx.Row) (Rule, error) {
 	}
 	rule.Matcher = matcher
 	rule.Effect = effect
+	if len(upstreamTLSJSON) > 0 {
+		upstreamTLS := &egressv1.EgressRuleUpstreamTls{}
+		if err := protojson.Unmarshal(upstreamTLSJSON, upstreamTLS); err != nil {
+			return Rule{}, fmt.Errorf("unmarshal upstream_tls: %w", err)
+		}
+		rule.UpstreamTLS = upstreamTLS
+	}
 	return rule, nil
+}
+
+func marshalUpstreamTLS(upstreamTLS *egressv1.EgressRuleUpstreamTls) ([]byte, error) {
+	if upstreamTLS == nil {
+		return nil, nil
+	}
+	data, err := protojson.Marshal(upstreamTLS)
+	if err != nil {
+		return nil, fmt.Errorf("marshal upstream_tls: %w", err)
+	}
+	return data, nil
 }
 
 func scanAttachment(row pgx.Row) (Attachment, error) {

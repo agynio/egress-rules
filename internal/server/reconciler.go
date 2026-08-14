@@ -55,25 +55,31 @@ func (s *Server) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return toStatusError(err)
 	}
-	ruleServiceIDs := make(map[string]string, len(rules))
-	for _, rule := range rules {
-		serviceID, err := s.reconcileRuleService(ctx, rule)
-		if err != nil {
-			return err
-		}
-		if serviceID != rule.OpenZitiServiceID {
-			if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
-				return toStatusError(err)
+	rulesByID := make(map[string]store.Rule, len(rules))
+	for index, rule := range rules {
+		// A private-target rule owns no OpenZiti service; its attachment
+		// policies select the resource's service by role attribute.
+		if !rule.IsPrivateTarget() {
+			serviceID, err := s.reconcileRuleService(ctx, rule)
+			if err != nil {
+				return err
+			}
+			if serviceID != rule.OpenZitiServiceID {
+				if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
+					return toStatusError(err)
+				}
+				rule.OpenZitiServiceID = serviceID
+				rules[index] = rule
 			}
 		}
-		ruleServiceIDs[rule.ID.String()] = serviceID
+		rulesByID[rule.ID.String()] = rule
 	}
 	for _, attachment := range attachments {
-		serviceID, ok := ruleServiceIDs[attachment.RuleID.String()]
+		rule, ok := rulesByID[attachment.RuleID.String()]
 		if !ok {
 			return status.Errorf(codes.Internal, "egress rule attachment %s references unknown rule %s", attachment.ID, attachment.RuleID)
 		}
-		policyID, err := s.reconcileAttachmentPolicy(ctx, attachment, serviceID)
+		policyID, err := s.reconcileAttachmentPolicy(ctx, attachment, rule)
 		if err != nil {
 			return err
 		}
@@ -89,6 +95,7 @@ func (s *Server) Reconcile(ctx context.Context) error {
 	if err := s.deleteOrphanServicePolicies(ctx, attachments); err != nil {
 		return err
 	}
+	s.reportInterceptCollisions(ctx, rules, attachments)
 	return nil
 }
 

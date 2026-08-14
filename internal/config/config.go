@@ -12,6 +12,8 @@ const (
 	defaultAuthorizationTarget  = "authorization:50051"
 	defaultSecretsTarget        = "secrets:50051"
 	defaultNotificationsTarget  = "notifications:50051"
+	defaultNetworksTarget       = "networks:50051"
+	defaultAgentsTarget         = "agents:50051"
 	defaultReconcileInterval    = time.Minute
 )
 
@@ -23,6 +25,8 @@ type Config struct {
 	AuthorizationAddress   string
 	SecretsAddress         string
 	NotificationsAddress   string
+	NetworksAddress        string
+	AgentsAddress          string
 	ReconciliationInterval time.Duration
 }
 
@@ -35,6 +39,8 @@ func Load() (Config, error) {
 		AuthorizationAddress:   envOrDefault("AUTHORIZATION_SERVICE_ADDRESS", defaultAuthorizationTarget),
 		SecretsAddress:         envOrDefault("SECRETS_SERVICE_ADDRESS", defaultSecretsTarget),
 		NotificationsAddress:   envOrDefault("NOTIFICATIONS_ADDRESS", defaultNotificationsTarget),
+		NetworksAddress:        envOrDefault("NETWORKS_SERVICE_ADDRESS", defaultNetworksTarget),
+		AgentsAddress:          envOrDefault("AGENTS_SERVICE_ADDRESS", defaultAgentsTarget),
 		ReconciliationInterval: defaultReconcileInterval,
 	}
 	if cfg.DatabaseURL == "" {

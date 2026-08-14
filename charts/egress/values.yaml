@@ -86,6 +86,12 @@ env:
     value: "secrets:50051"
   - name: NOTIFICATIONS_ADDRESS
     value: "notifications:50051"
+  # Private-target validation, mediation flips, and lookup denormalization.
+  - name: NETWORKS_SERVICE_ADDRESS
+    value: "networks:50051"
+  # Agent enumeration for the reconciliation collision report.
+  - name: AGENTS_SERVICE_ADDRESS
+    value: "agents:50051"
   - name: RECONCILIATION_INTERVAL
     value: "60s"
 envFrom: []
@@ -173,9 +179,16 @@ internalAuthorizationPolicy:
   rules:
     - paths:
         - /agynio.api.egress.v1.EgressRulesService/ListEgressRulesByAgent
+        - /agynio.api.egress.v1.EgressRulesService/ListEgressRulesByEnvironment
       serviceAccounts:
         - name: egress-gateway
     - paths:
         - /agynio.api.egress.v1.EgressRulesService/CountRulesReferencingSecret
       serviceAccounts:
         - name: secrets
+    - paths:
+        - /agynio.api.egress.v1.EgressRulesService/CountRulesReferencingPrivateResource
+        - /agynio.api.egress.v1.EgressRulesService/ListMediatedPrivateResources
+        - /agynio.api.egress.v1.EgressRulesService/ListAttachedRuleDomains
+      serviceAccounts:
+        - name: networks

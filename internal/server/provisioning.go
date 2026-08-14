@@ -68,6 +68,16 @@ func zitiServiceIDRole(serviceID string) string {
 	return fmt.Sprintf("@%s", serviceID)
 }
 
+// The service selector an attachment policy dials. A public rule's own
+// service is named by id; a private rule rides the resource's service, whose
+// per-resource role attribute survives the service being recreated.
+func attachmentServiceRole(rule store.Rule) string {
+	if resourceID := rule.Matcher.GetPrivateResourceId(); resourceID != "" {
+		return fmt.Sprintf("#private-resource-%s", resourceID)
+	}
+	return zitiServiceIDRole(rule.OpenZitiServiceID)
+}
+
 func (s *Server) provisionRuleService(ctx context.Context, ruleID uuid.UUID, matcher *egressv1.EgressRuleMatcher) (string, error) {
 	req := createServiceRequest(ruleID, matcher)
 	req.ReturnExisting = true
@@ -131,16 +141,16 @@ func (s *Server) deleteRuleService(ctx context.Context, serviceID string) error 
 	return nil
 }
 
-func (s *Server) provisionAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, target attachmentTarget, serviceID string) (string, error) {
-	return s.createAttachmentPolicy(ctx, ruleID, target, serviceID, true)
+func (s *Server) provisionAttachmentPolicy(ctx context.Context, rule store.Rule, target attachmentTarget) (string, error) {
+	return s.createAttachmentPolicy(ctx, rule, target, true)
 }
 
-func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, target attachmentTarget, serviceID string, returnExisting bool) (string, error) {
+func (s *Server) createAttachmentPolicy(ctx context.Context, rule store.Rule, target attachmentTarget, returnExisting bool) (string, error) {
 	resp, err := s.zitiClient.CreateServicePolicy(ctx, &zitimanagementv1.CreateServicePolicyRequest{
 		Type:           zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
-		Name:           egressDialPolicyName(ruleID, target),
+		Name:           egressDialPolicyName(rule.ID, target),
 		IdentityRoles:  []string{target.identityRole()},
-		ServiceRoles:   []string{zitiServiceIDRole(serviceID)},
+		ServiceRoles:   []string{attachmentServiceRole(rule)},
 		ReturnExisting: returnExisting,
 	})
 	if err != nil {
@@ -153,29 +163,29 @@ func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, t
 	return policyID, nil
 }
 
-func (s *Server) reconcileAttachmentPolicy(ctx context.Context, attachment store.Attachment, serviceID string) (string, error) {
+func (s *Server) reconcileAttachmentPolicy(ctx context.Context, attachment store.Attachment, rule store.Rule) (string, error) {
 	target, err := targetForAttachment(attachment)
 	if err != nil {
 		return "", err
 	}
 	policyID := attachment.OpenZitiDialPolicyID
 	if policyID == "" {
-		return s.provisionAttachmentPolicy(ctx, attachment.RuleID, target, serviceID)
+		return s.provisionAttachmentPolicy(ctx, rule, target)
 	}
 	resp, err := s.zitiClient.GetServicePolicy(ctx, &zitimanagementv1.GetServicePolicyRequest{ZitiServicePolicyId: policyID})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return s.provisionAttachmentPolicy(ctx, attachment.RuleID, target, serviceID)
+			return s.provisionAttachmentPolicy(ctx, rule, target)
 		}
 		return "", status.Errorf(codes.Internal, "get egress rule dial policy: %v", err)
 	}
-	if servicePolicyMatchesAttachment(resp.GetServicePolicy(), attachment, serviceID) {
+	if servicePolicyMatchesAttachment(resp.GetServicePolicy(), attachment, rule) {
 		return policyID, nil
 	}
-	return s.replaceAttachmentPolicy(ctx, attachment, serviceID)
+	return s.replaceAttachmentPolicy(ctx, attachment, rule)
 }
 
-func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.Attachment, serviceID string) (string, error) {
+func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.Attachment, rule store.Rule) (string, error) {
 	if err := s.deleteAttachmentPolicy(ctx, attachment.OpenZitiDialPolicyID); err != nil {
 		return "", err
 	}
@@ -183,7 +193,7 @@ func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.A
 	if err != nil {
 		return "", err
 	}
-	return s.createAttachmentPolicy(ctx, attachment.RuleID, target, serviceID, false)
+	return s.createAttachmentPolicy(ctx, rule, target, false)
 }
 
 func (s *Server) deleteAttachmentPolicy(ctx context.Context, policyID string) error {
@@ -234,7 +244,7 @@ func serviceMatchesRule(service *zitimanagementv1.OpenZitiService, rule store.Ru
 		stringSlicesEqual(service.GetRoleAttributes(), []string{egressServiceRoleAttribute})
 }
 
-func servicePolicyMatchesAttachment(policy *zitimanagementv1.OpenZitiServicePolicy, attachment store.Attachment, serviceID string) bool {
+func servicePolicyMatchesAttachment(policy *zitimanagementv1.OpenZitiServicePolicy, attachment store.Attachment, rule store.Rule) bool {
 	if policy == nil {
 		return false
 	}
@@ -245,7 +255,7 @@ func servicePolicyMatchesAttachment(policy *zitimanagementv1.OpenZitiServicePoli
 	return policy.GetName() == egressDialPolicyName(attachment.RuleID, target) &&
 		policy.GetType() == zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL &&
 		stringSlicesEqual(policy.GetIdentityRoles(), []string{target.identityRole()}) &&
-		stringSlicesEqual(policy.GetServiceRoles(), []string{zitiServiceIDRole(serviceID)})
+		stringSlicesEqual(policy.GetServiceRoles(), []string{attachmentServiceRole(rule)})
 }
 
 func hostV1ConfigsEqual(left *zitimanagementv1.HostV1Config, right *zitimanagementv1.HostV1Config) bool {

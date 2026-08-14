@@ -1,0 +1,349 @@
+syntax = "proto3";
+
+package agynio.api.networks.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/agynio/api/gen/agynio/api/networks/v1;networksv1";
+
+// NetworksService manages private networks, tunnels, resources, and grants.
+service NetworksService {
+  // --- Networks ---
+  rpc CreateNetwork(CreateNetworkRequest) returns (CreateNetworkResponse);
+  rpc GetNetwork(GetNetworkRequest) returns (GetNetworkResponse);
+  rpc ListNetworks(ListNetworksRequest) returns (ListNetworksResponse);
+  rpc UpdateNetwork(UpdateNetworkRequest) returns (UpdateNetworkResponse);
+  rpc DeleteNetwork(DeleteNetworkRequest) returns (DeleteNetworkResponse);
+
+  // --- Tunnel Credentials ---
+  rpc CreateTunnelCredential(CreateTunnelCredentialRequest) returns (CreateTunnelCredentialResponse);
+  rpc GetTunnelCredential(GetTunnelCredentialRequest) returns (GetTunnelCredentialResponse);
+  rpc ListTunnelCredentials(ListTunnelCredentialsRequest) returns (ListTunnelCredentialsResponse);
+  rpc DeleteTunnelCredential(DeleteTunnelCredentialRequest) returns (DeleteTunnelCredentialResponse);
+
+  // --- Private Resources ---
+  rpc CreatePrivateResource(CreatePrivateResourceRequest) returns (CreatePrivateResourceResponse);
+  rpc GetPrivateResource(GetPrivateResourceRequest) returns (GetPrivateResourceResponse);
+  rpc ListPrivateResources(ListPrivateResourcesRequest) returns (ListPrivateResourcesResponse);
+  rpc UpdatePrivateResource(UpdatePrivateResourceRequest) returns (UpdatePrivateResourceResponse);
+  rpc DeletePrivateResource(DeletePrivateResourceRequest) returns (DeletePrivateResourceResponse);
+
+  // --- Private Resource Access ---
+  rpc CreatePrivateResourceAccess(CreatePrivateResourceAccessRequest) returns (CreatePrivateResourceAccessResponse);
+  rpc DeletePrivateResourceAccess(DeletePrivateResourceAccessRequest) returns (DeletePrivateResourceAccessResponse);
+  rpc ListPrivateResourceAccess(ListPrivateResourceAccessRequest) returns (ListPrivateResourceAccessResponse);
+
+  // --- Internal ---
+  rpc SetPrivateResourceMediation(SetPrivateResourceMediationRequest) returns (SetPrivateResourceMediationResponse);
+  rpc ListPrivateResourcesReachableBy(ListPrivateResourcesReachableByRequest) returns (ListPrivateResourcesReachableByResponse);
+}
+
+// Metadata shared by network resources.
+message EntityMeta {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+// Provisioning state for OpenZiti-backed resources.
+enum ProvisioningState {
+  PROVISIONING_STATE_UNSPECIFIED = 0;
+  PROVISIONING_STATE_ACTIVE = 1;
+  PROVISIONING_STATE_FAILED = 2;
+  PROVISIONING_STATE_REMOVING = 3;
+}
+
+// Tunnel enrollment state from the OpenZiti Controller.
+enum TunnelEnrollmentState {
+  TUNNEL_ENROLLMENT_STATE_UNSPECIFIED = 0;
+  TUNNEL_ENROLLMENT_STATE_PENDING = 1;
+  TUNNEL_ENROLLMENT_STATE_ENROLLED = 2;
+}
+
+// Tunnel connectivity state from the OpenZiti Controller.
+enum TunnelConnectivity {
+  TUNNEL_CONNECTIVITY_UNSPECIFIED = 0;
+  TUNNEL_CONNECTIVITY_ONLINE = 1;
+  TUNNEL_CONNECTIVITY_OFFLINE = 2;
+}
+
+// Protocol for a private resource. UDP is not supported in v1.
+enum PrivateResourceProtocol {
+  PRIVATE_RESOURCE_PROTOCOL_UNSPECIFIED = 0;
+  PRIVATE_RESOURCE_PROTOCOL_TCP = 1;
+  PRIVATE_RESOURCE_PROTOCOL_HTTP = 2;
+  PRIVATE_RESOURCE_PROTOCOL_HTTPS = 3;
+}
+
+enum PrivateResourceMediation {
+  PRIVATE_RESOURCE_MEDIATION_UNSPECIFIED = 0;
+  PRIVATE_RESOURCE_MEDIATION_TUNNEL = 1;
+  PRIVATE_RESOURCE_MEDIATION_EGRESS_GATEWAY = 2;
+}
+
+// Principal types eligible for private resource access.
+enum PrivateResourceAccessPrincipalType {
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_UNSPECIFIED = 0;
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_AGENT = 1;
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_USER = 2;
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_APP = 3;
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_GROUP = 4;
+  PRIVATE_RESOURCE_ACCESS_PRINCIPAL_TYPE_ENVIRONMENT = 5;
+}
+
+// Organization-scoped private network.
+message Network {
+  EntityMeta meta = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  ProvisioningState provisioning_state = 5;
+}
+
+// Read-side tunnel credential. The one-time enrollment JWT is only returned by
+// CreateTunnelCredentialResponse and is intentionally absent from this message.
+message TunnelCredential {
+  EntityMeta meta = 1;
+  string network_id = 2;
+  bool enrollment_jwt_revealed = 3;
+  google.protobuf.Timestamp enrollment_jwt_expires_at = 4;
+  TunnelEnrollmentState enrollment_state = 5;
+  TunnelConnectivity connectivity = 6;
+  ProvisioningState provisioning_state = 7;
+  optional google.protobuf.Timestamp enrolled_at = 8;
+  optional google.protobuf.Timestamp last_seen_at = 9;
+}
+
+// Addressable endpoint behind a private network.
+message PrivateResource {
+  EntityMeta meta = 1;
+  string organization_id = 2;
+  string network_id = 3;
+  string name = 4;
+  PrivateResourceProtocol protocol = 5;
+  string target_host = 6;
+  // Numeric target ports. Each value must be in the range 1..65535.
+  repeated int32 target_ports = 7;
+  string intercept_host = 8;
+  // Numeric intercept ports. Each value must be in the range 1..65535.
+  repeated int32 intercept_ports = 9;
+  ProvisioningState provisioning_state = 10;
+  PrivateResourceMediation mediation = 11;
+}
+
+// Immutable grant authorizing a principal to dial a private resource.
+message PrivateResourceAccess {
+  EntityMeta meta = 1;
+  string private_resource_id = 2;
+  PrivateResourceAccessPrincipalType principal_type = 3;
+  string principal_id = 4;
+  ProvisioningState provisioning_state = 5;
+}
+
+// Optional replacement for a port list in update requests.
+message PortListUpdate {
+  // Numeric ports. Each value must be in the range 1..65535.
+  repeated int32 ports = 1;
+}
+
+message CreateNetworkRequest {
+  string organization_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message CreateNetworkResponse {
+  Network network = 1;
+}
+
+message GetNetworkRequest {
+  string id = 1;
+}
+
+message GetNetworkResponse {
+  Network network = 1;
+}
+
+message ListNetworksRequest {
+  string organization_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListNetworksResponse {
+  repeated Network networks = 1;
+  string next_page_token = 2;
+}
+
+message UpdateNetworkRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+}
+
+message UpdateNetworkResponse {
+  Network network = 1;
+}
+
+message DeleteNetworkRequest {
+  string id = 1;
+}
+
+message DeleteNetworkResponse {}
+
+message CreateTunnelCredentialRequest {
+  string network_id = 1;
+}
+
+message CreateTunnelCredentialResponse {
+  TunnelCredential tunnel_credential = 1;
+  // One-time enrollment JWT. It is not returned by read/list responses.
+  string enrollment_jwt = 2;
+}
+
+message GetTunnelCredentialRequest {
+  string id = 1;
+}
+
+message GetTunnelCredentialResponse {
+  TunnelCredential tunnel_credential = 1;
+}
+
+message ListTunnelCredentialsRequest {
+  string network_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListTunnelCredentialsResponse {
+  repeated TunnelCredential tunnel_credentials = 1;
+  string next_page_token = 2;
+}
+
+message DeleteTunnelCredentialRequest {
+  string id = 1;
+}
+
+message DeleteTunnelCredentialResponse {}
+
+message CreatePrivateResourceRequest {
+  string network_id = 1;
+  string name = 2;
+  PrivateResourceProtocol protocol = 3;
+  string target_host = 4;
+  // Numeric target ports. Each value must be in the range 1..65535.
+  repeated int32 target_ports = 5;
+  string intercept_host = 6;
+  // Numeric intercept ports. Each value must be in the range 1..65535.
+  repeated int32 intercept_ports = 7;
+}
+
+message CreatePrivateResourceResponse {
+  PrivateResource private_resource = 1;
+}
+
+message GetPrivateResourceRequest {
+  string id = 1;
+}
+
+message GetPrivateResourceResponse {
+  PrivateResource private_resource = 1;
+}
+
+message ListPrivateResourcesRequest {
+  optional string organization_id = 1;
+  optional string network_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListPrivateResourcesResponse {
+  repeated PrivateResource private_resources = 1;
+  string next_page_token = 2;
+}
+
+message UpdatePrivateResourceRequest {
+  string id = 1;
+  optional string name = 2;
+  optional PrivateResourceProtocol protocol = 3;
+  optional string target_host = 4;
+  // Deprecated: use target_ports_update to distinguish omitted from empty.
+  repeated int32 target_ports = 5 [deprecated = true];
+  optional string intercept_host = 6;
+  // Deprecated: use intercept_ports_update to distinguish omitted from empty.
+  repeated int32 intercept_ports = 7 [deprecated = true];
+  optional PortListUpdate target_ports_update = 8;
+  optional PortListUpdate intercept_ports_update = 9;
+}
+
+message UpdatePrivateResourceResponse {
+  PrivateResource private_resource = 1;
+}
+
+message DeletePrivateResourceRequest {
+  string id = 1;
+}
+
+message DeletePrivateResourceResponse {}
+
+message CreatePrivateResourceAccessRequest {
+  string private_resource_id = 1;
+  PrivateResourceAccessPrincipalType principal_type = 2;
+  string principal_id = 3;
+}
+
+message CreatePrivateResourceAccessResponse {
+  PrivateResourceAccess private_resource_access = 1;
+}
+
+message DeletePrivateResourceAccessRequest {
+  string id = 1;
+}
+
+message DeletePrivateResourceAccessResponse {}
+
+message ListPrivateResourceAccessRequest {
+  optional string private_resource_id = 1;
+  optional string network_id = 2;
+  optional PrivateResourceAccessPrincipalType principal_type = 3;
+  optional string principal_id = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+message ListPrivateResourceAccessResponse {
+  repeated PrivateResourceAccess private_resource_access = 1;
+  string next_page_token = 2;
+}
+
+message SetPrivateResourceMediationRequest {
+  string id = 1;
+  PrivateResourceMediation mediation = 2;
+}
+
+message SetPrivateResourceMediationResponse {
+  PrivateResource private_resource = 1;
+}
+
+message ReachablePrivateResourceGrant {
+  PrivateResourceAccessPrincipalType principal_type = 1;
+  string principal_id = 2;
+}
+
+message ReachablePrivateResource {
+  string id = 1;
+  string intercept_host = 2;
+  repeated int32 intercept_ports = 3;
+  repeated ReachablePrivateResourceGrant grants = 4;
+}
+
+message ListPrivateResourcesReachableByRequest {
+  oneof principal {
+    string agent_id = 1;
+    string environment_id = 2;
+  }
+}
+
+message ListPrivateResourcesReachableByResponse {
+  repeated ReachablePrivateResource private_resources = 1;
+}

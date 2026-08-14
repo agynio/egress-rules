@@ -17,15 +17,23 @@ const (
 
 // Rule is the persisted egress rule model.
 type Rule struct {
-	ID                uuid.UUID
-	OrganizationID    uuid.UUID
-	Name              string
-	Description       string
-	Matcher           *egressv1.EgressRuleMatcher
-	Effect            *egressv1.EgressRuleEffect
+	ID             uuid.UUID
+	OrganizationID uuid.UUID
+	Name           string
+	Description    string
+	Matcher        *egressv1.EgressRuleMatcher
+	Effect         *egressv1.EgressRuleEffect
+	// Private https targets only; nil otherwise.
+	UpstreamTLS       *egressv1.EgressRuleUpstreamTls
 	OpenZitiServiceID string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+// IsPrivateTarget reports whether the rule names a private resource rather
+// than a public domain pattern.
+func (r Rule) IsPrivateTarget() bool {
+	return r.Matcher.GetPrivateResourceId() != ""
 }
 
 // Attachment is the persisted egress rule attachment model.
@@ -102,6 +110,7 @@ func RuleToProto(rule Rule) *egressv1.EgressRule {
 		Description:    rule.Description,
 		Matcher:        rule.Matcher,
 		Effect:         rule.Effect,
+		UpstreamTls:    rule.UpstreamTLS,
 	}
 }
 
@@ -124,4 +133,19 @@ func AttachmentToProto(attachment Attachment) *egressv1.EgressRuleAttachment {
 		proto.Target = &egressv1.EgressRuleAttachment_AgentTargetId{AgentTargetId: attachment.AgentID.String()}
 	}
 	return proto
+}
+
+// TargetKind filters rules by destination kind in list queries.
+type TargetKind int
+
+const (
+	TargetKindAny TargetKind = iota
+	TargetKindPublic
+	TargetKindPrivate
+)
+
+// RuleListFilter narrows ListRules beyond the organization.
+type RuleListFilter struct {
+	PrivateResourceID *uuid.UUID
+	TargetKind        TargetKind
 }

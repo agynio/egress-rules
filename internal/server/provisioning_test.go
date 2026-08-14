@@ -59,6 +59,7 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	ruleID := uuid.New()
 	agentID := uuid.New()
 	serviceID := "ziti-service-id"
+	rule := store.Rule{ID: ruleID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}, OpenZitiServiceID: serviceID}
 	attachment := store.Attachment{RuleID: ruleID, AgentID: &agentID}
 	policy := &zitimanagementv1.OpenZitiServicePolicy{
 		ZitiServicePolicyId: "policy-id",
@@ -67,12 +68,22 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 		IdentityRoles:       []string{agentRole(agentID)},
 		ServiceRoles:        []string{zitiServiceIDRole(serviceID)},
 	}
-	if !servicePolicyMatchesAttachment(policy, attachment, serviceID) {
+	if !servicePolicyMatchesAttachment(policy, attachment, rule) {
 		t.Fatal("expected policy to match attachment")
 	}
 	policy.IdentityRoles = []string{"#agent-drift"}
-	if servicePolicyMatchesAttachment(policy, attachment, serviceID) {
+	if servicePolicyMatchesAttachment(policy, attachment, rule) {
 		t.Fatal("expected identity role drift to be detected")
+	}
+}
+
+// A private-target rule's attachment dials the resource's service by its
+// per-resource role attribute, which survives the service being recreated.
+func TestPrivateAttachmentPolicySelectsTheResourceRole(t *testing.T) {
+	resourceID := uuid.New()
+	rule := store.Rule{ID: uuid.New(), Matcher: &egressv1.EgressRuleMatcher{PrivateResourceId: resourceID.String()}}
+	if got, want := attachmentServiceRole(rule), "#private-resource-"+resourceID.String(); got != want {
+		t.Fatalf("expected service role %q, got %q", want, got)
 	}
 }
 

@@ -383,7 +383,9 @@ func (f *fakeAuthorizationClient) checked(expected string) bool {
 
 type fakeRuleStore struct {
 	rulesByEnvironment   []store.Rule
+	rulesByAgent         []store.Rule
 	rule                 store.Rule
+	created              *store.Rule
 	rules                []store.Rule
 	attachments          []store.Attachment
 	existingByPair       *store.Attachment
@@ -394,7 +396,12 @@ type fakeRuleStore struct {
 	listAttachmentsCalls int
 }
 
-func (f *fakeRuleStore) CreateRule(context.Context, store.Rule) error { return nil }
+func (f *fakeRuleStore) CreateRule(_ context.Context, rule store.Rule) error {
+	f.created = &rule
+	f.rule = rule
+	f.rules = append(f.rules, rule)
+	return nil
+}
 func (f *fakeRuleStore) UpdateRule(_ context.Context, rule store.Rule) error {
 	if f.updateRuleErr != nil {
 		return f.updateRuleErr
@@ -407,14 +414,14 @@ func (f *fakeRuleStore) UpdateRuleServiceID(_ context.Context, _ uuid.UUID, serv
 	return nil
 }
 func (f *fakeRuleStore) GetRule(context.Context, uuid.UUID) (store.Rule, error) { return f.rule, nil }
-func (f *fakeRuleStore) ListRules(context.Context, uuid.UUID, int32, *store.PageCursor) (store.RuleListResult, error) {
+func (f *fakeRuleStore) ListRules(context.Context, uuid.UUID, store.RuleListFilter, int32, *store.PageCursor) (store.RuleListResult, error) {
 	return store.RuleListResult{}, nil
 }
 func (f *fakeRuleStore) ListAllRules(context.Context) ([]store.Rule, error) {
 	return f.rules, nil
 }
 func (f *fakeRuleStore) ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error) {
-	return nil, nil
+	return f.rulesByAgent, nil
 }
 func (f *fakeRuleStore) ListRulesByEnvironment(context.Context, uuid.UUID) ([]store.Rule, error) {
 	return f.rulesByEnvironment, nil
@@ -462,6 +469,32 @@ func (f *fakeRuleStore) ListAttachments(context.Context, uuid.UUID, *uuid.UUID, 
 func (f *fakeRuleStore) DeleteAttachment(context.Context, uuid.UUID) error { return nil }
 func (f *fakeRuleStore) CountRulesReferencingSecret(context.Context, uuid.UUID) (int32, []uuid.UUID, error) {
 	return 0, nil, nil
+}
+
+func (f *fakeRuleStore) CountRulesReferencingPrivateResource(_ context.Context, resourceID uuid.UUID) (int32, []uuid.UUID, error) {
+	ids := []uuid.UUID{}
+	for _, rule := range f.rules {
+		if rule.Matcher.GetPrivateResourceId() == resourceID.String() {
+			ids = append(ids, rule.ID)
+		}
+	}
+	return int32(len(ids)), ids, nil
+}
+
+func (f *fakeRuleStore) ListMediatedPrivateResourceIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	seen := map[string]bool{}
+	ids := []uuid.UUID{}
+	for _, rule := range f.rules {
+		raw := rule.Matcher.GetPrivateResourceId()
+		if raw == "" || seen[raw] {
+			continue
+		}
+		seen[raw] = true
+		if id, err := uuid.Parse(raw); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 type fakeZitiManagementClient struct {

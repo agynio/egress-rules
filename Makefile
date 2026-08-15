@@ -7,7 +7,9 @@ BUF_PATHS := \
 	--path third_party/agynio-api/proto/agynio/api/secrets/v1 \
 	--path third_party/agynio-api/proto/agynio/api/notifications/v1 \
 	--path third_party/agynio-api/proto/agynio/api/identity/v1 \
-	--path third_party/agynio-api/proto/agynio/api/ziti_management/v1
+	--path third_party/agynio-api/proto/agynio/api/ziti_management/v1 \
+	--path third_party/agynio-api/proto/agynio/api/networks/v1 \
+	--path third_party/agynio-api/proto/agynio/api/agents/v1
 .PHONY: proto build build-go test test-go lint vet fmt ci clean
 
 proto:

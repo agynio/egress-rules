@@ -18,7 +18,7 @@ func (s *Server) CreateEgressRule(ctx context.Context, req *egressv1.CreateEgres
 	if err != nil {
 		return nil, err
 	}
-	input, err := validateRuleInput(req.GetOrganizationId(), req.GetName(), req.GetDescription(), req.GetMatcher(), req.GetEffect())
+	input, err := validateRuleInput(req.GetOrganizationId(), req.GetName(), req.GetDescription(), req.GetMatcher(), req.GetEffect(), req.GetUpstreamTls())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -28,11 +28,20 @@ func (s *Server) CreateEgressRule(ctx context.Context, req *egressv1.CreateEgres
 	if err := s.validateSecrets(ctx, input.OrganizationID, input.SecretIDs); err != nil {
 		return nil, err
 	}
+	if err := s.validatePrivateTarget(ctx, input.OrganizationID, input.Matcher, input.UpstreamTLS); err != nil {
+		return nil, err
+	}
 
 	ruleID := uuid.New()
-	serviceID, err := s.provisionRuleService(ctx, ruleID, input.Matcher)
-	if err != nil {
-		return nil, err
+	// A private-target rule provisions no OpenZiti service of its own; it
+	// rides the resource's, and its first rule flips the resource onto the
+	// gateway instead.
+	serviceID := ""
+	if input.Matcher.GetPrivateResourceId() == "" {
+		serviceID, err = s.provisionRuleService(ctx, ruleID, input.Matcher)
+		if err != nil {
+			return nil, err
+		}
 	}
 	rule := store.Rule{
 		ID:                ruleID,
@@ -41,6 +50,7 @@ func (s *Server) CreateEgressRule(ctx context.Context, req *egressv1.CreateEgres
 		Description:       input.Description,
 		Matcher:           input.Matcher,
 		Effect:            input.Effect,
+		UpstreamTLS:       input.UpstreamTLS,
 		OpenZitiServiceID: serviceID,
 	}
 	if err := s.store.CreateRule(ctx, rule); err != nil {
@@ -52,6 +62,9 @@ func (s *Server) CreateEgressRule(ctx context.Context, req *egressv1.CreateEgres
 	stored, err := s.store.GetRule(ctx, ruleID)
 	if err != nil {
 		return nil, toStatusError(err)
+	}
+	if resourceID, err := uuid.Parse(stored.Matcher.GetPrivateResourceId()); err == nil {
+		s.syncPrivateResourceMediation(ctx, resourceID)
 	}
 	s.publishRuleUpdated(ctx, stored.OrganizationID, stored.ID, "created")
 	return &egressv1.CreateEgressRuleResponse{EgressRule: store.RuleToProto(stored)}, nil
@@ -92,7 +105,21 @@ func (s *Server) ListEgressRules(ctx context.Context, req *egressv1.ListEgressRu
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	result, err := s.store.ListRules(ctx, organizationID, req.GetPageSize(), cursor)
+	filter := store.RuleListFilter{}
+	if req.PrivateResourceId != nil {
+		resourceID, err := parseUUID(req.GetPrivateResourceId(), "private_resource_id")
+		if err != nil {
+			return nil, err
+		}
+		filter.PrivateResourceID = &resourceID
+	}
+	switch req.GetTargetKind() {
+	case egressv1.EgressRuleTargetKind_EGRESS_RULE_TARGET_KIND_PUBLIC:
+		filter.TargetKind = store.TargetKindPublic
+	case egressv1.EgressRuleTargetKind_EGRESS_RULE_TARGET_KIND_PRIVATE:
+		filter.TargetKind = store.TargetKindPrivate
+	}
+	result, err := s.store.ListRules(ctx, organizationID, filter, req.GetPageSize(), cursor)
 	if err != nil {
 		return nil, toStatusError(err)
 	}
@@ -122,28 +149,44 @@ func (s *Server) UpdateEgressRule(ctx context.Context, req *egressv1.UpdateEgres
 	if req.Description != nil {
 		updated.Description = req.GetDescription()
 	}
-	if req.GetMatcher() != nil || req.GetEffect() != nil {
+	if req.GetMatcher() != nil || req.GetEffect() != nil || req.UpstreamTls != nil {
 		matcher := updated.Matcher
 		effect := updated.Effect
+		upstreamTLS := updated.UpstreamTLS
 		if req.GetMatcher() != nil {
 			matcher = req.GetMatcher()
 		}
 		if req.GetEffect() != nil {
 			effect = req.GetEffect()
 		}
-		input, err := validateRuleInput(existing.OrganizationID.String(), updated.Name, updated.Description, matcher, effect)
+		if req.UpstreamTls != nil {
+			// Presence with all fields empty clears the block.
+			upstreamTLS = req.GetUpstreamTls()
+		}
+		input, err := validateRuleInput(existing.OrganizationID.String(), updated.Name, updated.Description, matcher, effect, upstreamTLS)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
+		// The target kind is immutable, and a private rule cannot be
+		// repointed between resources; delete and recreate.
+		if input.Matcher.GetPrivateResourceId() != existing.Matcher.GetPrivateResourceId() {
+			return nil, status.Error(codes.InvalidArgument, "the matcher's destination kind is immutable; delete the rule and create a new one")
+		}
 		if err := s.validateSecrets(ctx, existing.OrganizationID, input.SecretIDs); err != nil {
 			return nil, err
+		}
+		if req.UpstreamTls != nil {
+			if err := s.validatePrivateTarget(ctx, existing.OrganizationID, input.Matcher, input.UpstreamTLS); err != nil {
+				return nil, err
+			}
 		}
 		updated.Name = input.Name
 		updated.Description = input.Description
 		updated.Matcher = input.Matcher
 		updated.Effect = input.Effect
+		updated.UpstreamTLS = input.UpstreamTLS
 	}
-	if req.GetMatcher() != nil && !interceptV1ConfigsEqual(interceptV1Config(existing.Matcher), interceptV1Config(updated.Matcher)) {
+	if req.GetMatcher() != nil && !updated.IsPrivateTarget() && !interceptV1ConfigsEqual(interceptV1Config(existing.Matcher), interceptV1Config(updated.Matcher)) {
 		serviceID, err := s.updateRuleService(ctx, updated)
 		if err != nil {
 			return nil, err
@@ -190,6 +233,10 @@ func (s *Server) DeleteEgressRule(ctx context.Context, req *egressv1.DeleteEgres
 	if err := s.deleteRuleService(ctx, rule.OpenZitiServiceID); err != nil {
 		return nil, err
 	}
+	// Deleting a resource's last rule returns it to the direct tunnel path.
+	if resourceID, err := uuid.Parse(rule.Matcher.GetPrivateResourceId()); err == nil {
+		s.syncPrivateResourceMediation(ctx, resourceID)
+	}
 	s.publishRuleUpdated(ctx, rule.OrganizationID, rule.ID, "deleted")
 	return &egressv1.DeleteEgressRuleResponse{}, nil
 }
@@ -225,16 +272,24 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
 		return nil, toStatusError(err)
 	}
-	serviceID, err := s.reconcileRuleService(ctx, rule)
-	if err != nil {
+	if err := s.rejectInterceptCollision(ctx, rule, target); err != nil {
 		return nil, err
 	}
-	if serviceID != rule.OpenZitiServiceID {
-		if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
-			return nil, toStatusError(err)
+	// A private-target rule rides the resource's service; only a public one
+	// has a per-rule service to reconcile.
+	if !rule.IsPrivateTarget() {
+		serviceID, err := s.reconcileRuleService(ctx, rule)
+		if err != nil {
+			return nil, err
 		}
+		if serviceID != rule.OpenZitiServiceID {
+			if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
+				return nil, toStatusError(err)
+			}
+		}
+		rule.OpenZitiServiceID = serviceID
 	}
-	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, target, serviceID)
+	policyID, err := s.provisionAttachmentPolicy(ctx, rule, target)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +418,7 @@ func (s *Server) ListEgressRulesByEnvironment(ctx context.Context, req *egressv1
 	if err != nil {
 		return nil, toStatusError(err)
 	}
-	return &egressv1.ListEgressRulesByEnvironmentResponse{EgressRules: rulesToProto(rules)}, nil
+	return &egressv1.ListEgressRulesByEnvironmentResponse{EgressRules: rulesToProto(rules), PrivateResources: s.privateResourceInfos(ctx, rules)}, nil
 }
 
 func (s *Server) ListEgressRulesByAgent(ctx context.Context, req *egressv1.ListEgressRulesByAgentRequest) (*egressv1.ListEgressRulesByAgentResponse, error) {
@@ -375,7 +430,7 @@ func (s *Server) ListEgressRulesByAgent(ctx context.Context, req *egressv1.ListE
 	if err != nil {
 		return nil, toStatusError(err)
 	}
-	return &egressv1.ListEgressRulesByAgentResponse{EgressRules: rulesToProto(rules)}, nil
+	return &egressv1.ListEgressRulesByAgentResponse{EgressRules: rulesToProto(rules), PrivateResources: s.privateResourceInfos(ctx, rules)}, nil
 }
 
 func (s *Server) CountRulesReferencingSecret(ctx context.Context, req *egressv1.CountRulesReferencingSecretRequest) (*egressv1.CountRulesReferencingSecretResponse, error) {
@@ -392,6 +447,83 @@ func (s *Server) CountRulesReferencingSecret(ctx context.Context, req *egressv1.
 		values = append(values, id.String())
 	}
 	return &egressv1.CountRulesReferencingSecretResponse{Count: count, EgressRuleIds: values}, nil
+}
+
+// Internal-only: the Networks service refuses to delete a private resource,
+// or change its protocol to tcp, while rules name it.
+func (s *Server) CountRulesReferencingPrivateResource(ctx context.Context, req *egressv1.CountRulesReferencingPrivateResourceRequest) (*egressv1.CountRulesReferencingPrivateResourceResponse, error) {
+	resourceID, err := parseUUID(req.GetPrivateResourceId(), "private_resource_id")
+	if err != nil {
+		return nil, err
+	}
+	count, ids, err := s.store.CountRulesReferencingPrivateResource(ctx, resourceID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, id.String())
+	}
+	return &egressv1.CountRulesReferencingPrivateResourceResponse{Count: count, EgressRuleIds: values}, nil
+}
+
+// Internal-only: the Networks service re-derives desired mediation for an
+// organization's resources each reconciliation pass.
+func (s *Server) ListMediatedPrivateResources(ctx context.Context, req *egressv1.ListMediatedPrivateResourcesRequest) (*egressv1.ListMediatedPrivateResourcesResponse, error) {
+	organizationID, err := parseUUID(req.GetOrganizationId(), "organization_id")
+	if err != nil {
+		return nil, err
+	}
+	ids, err := s.store.ListMediatedPrivateResourceIDs(ctx, organizationID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, id.String())
+	}
+	return &egressv1.ListMediatedPrivateResourcesResponse{PrivateResourceIds: values}, nil
+}
+
+// Internal-only: the Networks service fast-fails a hostname collision before
+// granting a principal a private resource. The caller expands an agent to its
+// environment and calls once per principal.
+func (s *Server) ListAttachedRuleDomains(ctx context.Context, req *egressv1.ListAttachedRuleDomainsRequest) (*egressv1.ListAttachedRuleDomainsResponse, error) {
+	var rules []store.Rule
+	switch principal := req.GetPrincipal().(type) {
+	case *egressv1.ListAttachedRuleDomainsRequest_AgentId:
+		agentID, err := parseUUID(principal.AgentId, "agent_id")
+		if err != nil {
+			return nil, err
+		}
+		rules, err = s.store.ListRulesByAgent(ctx, agentID)
+		if err != nil {
+			return nil, toStatusError(err)
+		}
+	case *egressv1.ListAttachedRuleDomainsRequest_EnvironmentId:
+		environmentID, err := parseUUID(principal.EnvironmentId, "environment_id")
+		if err != nil {
+			return nil, err
+		}
+		rules, err = s.store.ListRulesByEnvironment(ctx, environmentID)
+		if err != nil {
+			return nil, toStatusError(err)
+		}
+	default:
+		return nil, status.Error(codes.InvalidArgument, "principal is required")
+	}
+	domains := make([]*egressv1.AttachedRuleDomain, 0, len(rules))
+	for _, rule := range rules {
+		if rule.IsPrivateTarget() {
+			continue
+		}
+		domains = append(domains, &egressv1.AttachedRuleDomain{
+			EgressRuleId:  rule.ID.String(),
+			DomainPattern: rule.Matcher.GetDomainPattern(),
+			Ports:         rule.Matcher.GetPorts(),
+		})
+	}
+	return &egressv1.ListAttachedRuleDomainsResponse{Domains: domains}, nil
 }
 
 func (s *Server) validateSecrets(ctx context.Context, organizationID uuid.UUID, secretIDs []uuid.UUID) error {

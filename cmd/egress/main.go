@@ -5,8 +5,10 @@ import (
 	"log"
 	"net"
 
+	agentsv1 "github.com/agynio/egress/.gen/go/agynio/api/agents/v1"
 	authorizationv1 "github.com/agynio/egress/.gen/go/agynio/api/authorization/v1"
 	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
+	networksv1 "github.com/agynio/egress/.gen/go/agynio/api/networks/v1"
 	notificationsv1 "github.com/agynio/egress/.gen/go/agynio/api/notifications/v1"
 	secretsv1 "github.com/agynio/egress/.gen/go/agynio/api/secrets/v1"
 	zitimanagementv1 "github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1"
@@ -42,6 +44,10 @@ func main() {
 	defer notificationsConn.Close()
 	zitiConn := dialService(cfg.ZitiManagementAddress)
 	defer zitiConn.Close()
+	networksConn := dialService(cfg.NetworksAddress)
+	defer networksConn.Close()
+	agentsConn := dialService(cfg.AgentsAddress)
+	defer agentsConn.Close()
 
 	grpcServer := grpc.NewServer()
 	egressServer := server.New(server.Options{
@@ -50,6 +56,8 @@ func main() {
 		SecretsClient:       secretsv1.NewSecretsServiceClient(secretsConn),
 		NotificationsClient: notificationsv1.NewNotificationsServiceClient(notificationsConn),
 		ZitiClient:          zitimanagementv1.NewZitiManagementServiceClient(zitiConn),
+		NetworksClient:      networksv1.NewNetworksServiceClient(networksConn),
+		AgentsClient:        agentsv1.NewAgentsServiceClient(agentsConn),
 	})
 	egressv1.RegisterEgressRulesServiceServer(grpcServer, egressServer)
 	go server.NewReconciler(egressServer, cfg.ReconciliationInterval).Run(ctx)

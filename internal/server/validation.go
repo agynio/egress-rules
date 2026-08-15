@@ -18,10 +18,11 @@ type validatedRuleInput struct {
 	Description    string
 	Matcher        *egressv1.EgressRuleMatcher
 	Effect         *egressv1.EgressRuleEffect
+	UpstreamTLS    *egressv1.EgressRuleUpstreamTls
 	SecretIDs      []uuid.UUID
 }
 
-func validateRuleInput(organizationIDValue string, name string, description string, matcher *egressv1.EgressRuleMatcher, effect *egressv1.EgressRuleEffect) (validatedRuleInput, error) {
+func validateRuleInput(organizationIDValue string, name string, description string, matcher *egressv1.EgressRuleMatcher, effect *egressv1.EgressRuleEffect, upstreamTLS *egressv1.EgressRuleUpstreamTls) (validatedRuleInput, error) {
 	if isNoopEffect(effect) {
 		return validatedRuleInput{}, fmt.Errorf("effect must set deny, allow, or injected headers")
 	}
@@ -37,12 +38,20 @@ func validateRuleInput(organizationIDValue string, name string, description stri
 	if err != nil {
 		return validatedRuleInput{}, err
 	}
+	validatedUpstreamTLS, upstreamSecretID, err := validateUpstreamTLS(upstreamTLS, validatedMatcher)
+	if err != nil {
+		return validatedRuleInput{}, err
+	}
+	if upstreamSecretID != nil {
+		secretIDs = append(secretIDs, *upstreamSecretID)
+	}
 	return validatedRuleInput{
 		OrganizationID: organizationID,
 		Name:           strings.TrimSpace(name),
 		Description:    strings.TrimSpace(description),
 		Matcher:        validatedMatcher,
 		Effect:         validatedEffect,
+		UpstreamTLS:    validatedUpstreamTLS,
 		SecretIDs:      secretIDs,
 	}, nil
 }
@@ -52,17 +61,35 @@ func validateMatcher(matcher *egressv1.EgressRuleMatcher) (*egressv1.EgressRuleM
 		return nil, fmt.Errorf("matcher is required")
 	}
 	domainPattern := strings.ToLower(strings.TrimSpace(matcher.GetDomainPattern()))
-	if domainPattern == "" {
-		return nil, fmt.Errorf("matcher.domain_pattern is required")
+	privateResourceValue := strings.TrimSpace(matcher.GetPrivateResourceId())
+	if domainPattern == "" && privateResourceValue == "" {
+		return nil, fmt.Errorf("matcher requires one of domain_pattern or private_resource_id")
+	}
+	if domainPattern != "" && privateResourceValue != "" {
+		return nil, fmt.Errorf("matcher.domain_pattern and matcher.private_resource_id are mutually exclusive")
+	}
+	methods, err := validateMethods(matcher.GetMethods())
+	if err != nil {
+		return nil, err
+	}
+	if privateResourceValue != "" {
+		privateResourceID, err := uuid.Parse(privateResourceValue)
+		if err != nil {
+			return nil, fmt.Errorf("matcher.private_resource_id is invalid")
+		}
+		if len(matcher.GetPorts()) > 0 {
+			return nil, fmt.Errorf("matcher.ports applies to public targets only; a private target covers the resource's intercept ports")
+		}
+		return &egressv1.EgressRuleMatcher{
+			PrivateResourceId: privateResourceID.String(),
+			Methods:           methods,
+			PathPattern:       strings.TrimSpace(matcher.GetPathPattern()),
+		}, nil
 	}
 	if err := rejectReservedDomainPattern(domainPattern); err != nil {
 		return nil, err
 	}
 	ports, err := validatePorts(matcher.GetPorts())
-	if err != nil {
-		return nil, err
-	}
-	methods, err := validateMethods(matcher.GetMethods())
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +99,38 @@ func validateMatcher(matcher *egressv1.EgressRuleMatcher) (*egressv1.EgressRuleM
 		Methods:       methods,
 		PathPattern:   strings.TrimSpace(matcher.GetPathPattern()),
 	}, nil
+}
+
+// The resource's protocol is validated at the service layer, where the
+// resource is fetched; this only checks the shape.
+func validateUpstreamTLS(upstreamTLS *egressv1.EgressRuleUpstreamTls, matcher *egressv1.EgressRuleMatcher) (*egressv1.EgressRuleUpstreamTls, *uuid.UUID, error) {
+	if upstreamTLS == nil {
+		return nil, nil, nil
+	}
+	if matcher.GetPrivateResourceId() == "" {
+		return nil, nil, fmt.Errorf("upstream_tls applies to private targets only")
+	}
+	validated := &egressv1.EgressRuleUpstreamTls{ServerName: strings.TrimSpace(upstreamTLS.GetServerName())}
+	switch trust := upstreamTLS.GetTrust().(type) {
+	case *egressv1.EgressRuleUpstreamTls_CaBundleSecretId:
+		secretID, err := uuid.Parse(strings.TrimSpace(trust.CaBundleSecretId))
+		if err != nil {
+			return nil, nil, fmt.Errorf("upstream_tls.ca_bundle_secret_id is invalid")
+		}
+		validated.Trust = &egressv1.EgressRuleUpstreamTls_CaBundleSecretId{CaBundleSecretId: secretID.String()}
+		return validated, &secretID, nil
+	case *egressv1.EgressRuleUpstreamTls_InsecureSkipVerify:
+		if trust.InsecureSkipVerify {
+			validated.Trust = &egressv1.EgressRuleUpstreamTls_InsecureSkipVerify{InsecureSkipVerify: true}
+		}
+		return validated, nil, nil
+	default:
+		if validated.ServerName == "" {
+			// All fields empty clears the block on update.
+			return nil, nil, nil
+		}
+		return validated, nil, nil
+	}
 }
 
 func rejectReservedDomainPattern(domainPattern string) error {

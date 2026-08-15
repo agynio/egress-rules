@@ -10,8 +10,6 @@ CREATE TABLE IF NOT EXISTS egress_rules (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS egress_rules_organization_domain_pattern_uidx
-    ON egress_rules (organization_id, ((matcher->>'domain_pattern')));
 CREATE INDEX IF NOT EXISTS egress_rules_organization_id_idx ON egress_rules (organization_id, id);
 
 CREATE TABLE IF NOT EXISTS egress_rule_attachments (

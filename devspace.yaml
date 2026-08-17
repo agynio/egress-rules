@@ -1,7 +1,7 @@
 version: v2beta1
 
 vars:
-  EGRESS_NAMESPACE: platform
+  EGRESS_NAMESPACE: agyn-platform
   EGRESS_SELECTOR: app.kubernetes.io/name=egress
 
 functions:

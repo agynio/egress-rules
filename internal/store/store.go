@@ -174,7 +174,7 @@ func (s *Store) ListRulesByEnvironment(ctx context.Context, environmentID uuid.U
 		FROM egress_rules r
 		JOIN egress_rule_attachments a ON a.rule_id = r.id
 		WHERE a.environment_id = $1
-		ORDER BY r.id ASC`, prefixedRuleColumns("r")), environmentID)
+		ORDER BY r.id ASC`, prefixedColumns(ruleColumns, "r")), environmentID)
 	if err != nil {
 		return nil, fmt.Errorf("list egress rules by environment: %w", err)
 	}
@@ -192,7 +192,7 @@ func (s *Store) ListRulesByAgent(ctx context.Context, agentID uuid.UUID) ([]Rule
 		FROM egress_rules r
 		JOIN egress_rule_attachments a ON a.rule_id = r.id
 		WHERE a.agent_id = $1
-		ORDER BY r.id ASC`, prefixedRuleColumns("r")), agentID)
+		ORDER BY r.id ASC`, prefixedColumns(ruleColumns, "r")), agentID)
 	if err != nil {
 		return nil, fmt.Errorf("list egress rules by agent: %w", err)
 	}
@@ -298,7 +298,7 @@ func (s *Store) ListAttachments(ctx context.Context, organizationID uuid.UUID, r
 		SELECT %s
 		FROM egress_rule_attachments a
 		JOIN egress_rules r ON r.id = a.rule_id
-		WHERE r.organization_id = $1`, prefixedAttachmentColumns("a"))
+		WHERE r.organization_id = $1`, prefixedColumns(attachmentColumns, "a"))
 	if ruleID != nil {
 		args = append(args, *ruleID)
 		query += fmt.Sprintf(" AND a.rule_id = $%d", len(args))
@@ -524,19 +524,15 @@ func collectAttachments(rows pgx.Rows) ([]Attachment, error) {
 	return attachments, nil
 }
 
-func prefixedRuleColumns(prefix string) string {
-	return fmt.Sprintf(`%s.id, %s.organization_id, %s.name, %s.description, %s.matcher, %s.effect, %s.openziti_service_id, %s.created_at, %s.updated_at`, prefix, prefix, prefix, prefix, prefix, prefix, prefix, prefix, prefix)
-}
-
-// Derived from attachmentColumns rather than repeated: both feed scanAttachment,
-// and a column added to one list but not the other selects a different number of
-// values than the scan expects.
-func prefixedAttachmentColumns(prefix string) string {
-	columns := strings.Split(attachmentColumns, ", ")
-	for i, column := range columns {
-		columns[i] = prefix + "." + column
+// Derived from the column list the scan reads rather than repeated: a column
+// added to one and not the other selects a different number of values than the
+// scan expects.
+func prefixedColumns(columns string, prefix string) string {
+	prefixed := strings.Split(columns, ", ")
+	for i, column := range prefixed {
+		prefixed[i] = prefix + "." + column
 	}
-	return strings.Join(columns, ", ")
+	return strings.Join(prefixed, ", ")
 }
 
 func isUniqueViolation(err error) bool {

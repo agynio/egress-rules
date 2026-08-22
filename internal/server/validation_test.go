@@ -64,6 +64,46 @@ func TestValidateEffectHeaders(t *testing.T) {
 	}
 }
 
+func TestValidateEffectBasicCarriesUsername(t *testing.T) {
+	secretID := uuid.New()
+	effect, _, err := validateEffect(&egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{
+		{Name: "Authorization", Scheme: egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BASIC, Username: " x-access-token ", Credential: &egressv1.EgressRuleHeader_SecretId{SecretId: secretID.String()}},
+	}})
+	if err != nil {
+		t.Fatalf("validate effect: %v", err)
+	}
+	if got := effect.GetInject()[0].GetUsername(); got != "x-access-token" {
+		t.Fatalf("username = %q", got)
+	}
+}
+
+func TestValidateEffectRejectsBasicWithoutUsername(t *testing.T) {
+	_, _, err := validateEffect(&egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{
+		{Name: "Authorization", Scheme: egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BASIC, Credential: &egressv1.EgressRuleHeader_Value{Value: "token"}},
+	}})
+	if err == nil {
+		t.Fatal("expected basic without username to fail")
+	}
+}
+
+func TestValidateEffectRejectsUsernameWithColon(t *testing.T) {
+	_, _, err := validateEffect(&egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{
+		{Name: "Authorization", Scheme: egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BASIC, Username: "user:name", Credential: &egressv1.EgressRuleHeader_Value{Value: "token"}},
+	}})
+	if err == nil {
+		t.Fatal("expected username with a colon to fail")
+	}
+}
+
+func TestValidateEffectRejectsUsernameWithoutBasic(t *testing.T) {
+	_, _, err := validateEffect(&egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{
+		{Name: "Authorization", Scheme: egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BEARER, Username: "x-access-token", Credential: &egressv1.EgressRuleHeader_Value{Value: "token"}},
+	}})
+	if err == nil {
+		t.Fatal("expected username outside basic to fail")
+	}
+}
+
 func TestValidateEffectRejectsDuplicateHeader(t *testing.T) {
 	_, _, err := validateEffect(&egressv1.EgressRuleEffect{Inject: []*egressv1.EgressRuleHeader{
 		{Name: "Authorization", Credential: &egressv1.EgressRuleHeader_Value{Value: "a"}},

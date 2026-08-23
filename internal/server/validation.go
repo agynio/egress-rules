@@ -253,19 +253,31 @@ func validateHeader(header *egressv1.EgressRuleHeader, index int) (*egressv1.Egr
 	if scheme != egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_UNSPECIFIED && scheme != egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BEARER && scheme != egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BASIC {
 		return nil, nil, fmt.Errorf("effect.inject[%d].scheme is invalid", index)
 	}
+	username := strings.TrimSpace(header.GetUsername())
+	if scheme == egressv1.HeaderAuthScheme_HEADER_AUTH_SCHEME_BASIC {
+		if username == "" {
+			return nil, nil, fmt.Errorf("effect.inject[%d].username is required for basic", index)
+		}
+		// The gateway joins it to the credential as user:password before encoding.
+		if strings.ContainsAny(username, "\r\n:") {
+			return nil, nil, fmt.Errorf("effect.inject[%d].username is invalid", index)
+		}
+	} else if username != "" {
+		return nil, nil, fmt.Errorf("effect.inject[%d].username is only valid for basic", index)
+	}
 	switch credential := header.GetCredential().(type) {
 	case *egressv1.EgressRuleHeader_Value:
 		value := strings.TrimSpace(credential.Value)
 		if value == "" {
 			return nil, nil, fmt.Errorf("effect.inject[%d].value is required", index)
 		}
-		return &egressv1.EgressRuleHeader{Name: name, Scheme: scheme, Credential: &egressv1.EgressRuleHeader_Value{Value: value}}, nil, nil
+		return &egressv1.EgressRuleHeader{Name: name, Scheme: scheme, Username: username, Credential: &egressv1.EgressRuleHeader_Value{Value: value}}, nil, nil
 	case *egressv1.EgressRuleHeader_SecretId:
 		secretID, err := uuid.Parse(strings.TrimSpace(credential.SecretId))
 		if err != nil {
 			return nil, nil, fmt.Errorf("effect.inject[%d].secret_id is invalid", index)
 		}
-		return &egressv1.EgressRuleHeader{Name: name, Scheme: scheme, Credential: &egressv1.EgressRuleHeader_SecretId{SecretId: secretID.String()}}, &secretID, nil
+		return &egressv1.EgressRuleHeader{Name: name, Scheme: scheme, Username: username, Credential: &egressv1.EgressRuleHeader_SecretId{SecretId: secretID.String()}}, &secretID, nil
 	default:
 		return nil, nil, fmt.Errorf("effect.inject[%d] must set value or secret_id", index)
 	}

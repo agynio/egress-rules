@@ -37,6 +37,8 @@ type ruleStore interface {
 	CountRulesReferencingSecret(context.Context, uuid.UUID) (int32, []uuid.UUID, error)
 	CountRulesReferencingPrivateResource(context.Context, uuid.UUID) (int32, []uuid.UUID, error)
 	ListMediatedPrivateResourceIDs(context.Context, uuid.UUID) ([]uuid.UUID, error)
+	ListRulesByOrganization(context.Context, uuid.UUID) ([]store.Rule, error)
+	ListAttachmentsByOrganization(context.Context, uuid.UUID) ([]store.Attachment, error)
 }
 
 // networksClient validates private targets, flips mediation, denormalizes

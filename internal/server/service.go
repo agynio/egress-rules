@@ -591,3 +591,53 @@ func toStatusError(err error) error {
 		return status.Error(codes.Internal, fmt.Sprintf("internal error: %v", err))
 	}
 }
+
+// DeleteOrganizationResources removes the organization's egress rules and the
+// attachments on them, along with the OpenZiti service and dial policy behind
+// each. It is internal: Istio settles who may call it, so there is no
+// permission check and no caller identity to check against. Step 5 of the
+// organization teardown, after the agents whose attachments named these rules.
+//
+// Attachments go first: a rule with attachments refuses to be deleted, which is
+// the invariant DeleteEgressRule enforces and this step honours rather than
+// works around.
+//
+// The mediation sync and the change events that DeleteEgressRule fires are
+// skipped. Both address an organization that carries on afterwards; this one
+// does not, and the private resources they would sync against are removed by
+// Networks in this same step.
+//
+// Idempotent by construction: a retried step lists nothing and deletes nothing.
+func (s *Server) DeleteOrganizationResources(ctx context.Context, req *egressv1.DeleteOrganizationResourcesRequest) (*egressv1.DeleteOrganizationResourcesResponse, error) {
+	organizationID, err := parseUUID(req.GetOrganizationId(), "organization_id")
+	if err != nil {
+		return nil, err
+	}
+
+	attachments, err := s.store.ListAttachmentsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	for _, attachment := range attachments {
+		if err := s.store.DeleteAttachment(ctx, attachment.ID); err != nil {
+			return nil, toStatusError(err)
+		}
+		if err := s.deleteAttachmentPolicy(ctx, attachment.OpenZitiDialPolicyID); err != nil {
+			return nil, err
+		}
+	}
+
+	rules, err := s.store.ListRulesByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	for _, rule := range rules {
+		if err := s.store.DeleteRule(ctx, rule.ID); err != nil {
+			return nil, toStatusError(err)
+		}
+		if err := s.deleteRuleService(ctx, rule.OpenZitiServiceID); err != nil {
+			return nil, err
+		}
+	}
+	return &egressv1.DeleteOrganizationResourcesResponse{}, nil
+}

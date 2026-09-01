@@ -394,6 +394,10 @@ type fakeRuleStore struct {
 	updatedPolicyID      string
 	createdAttachment    *store.Attachment
 	listAttachmentsCalls int
+	orgRules             []store.Rule
+	orgAttachments       []store.Attachment
+	deletedRuleIDs       []uuid.UUID
+	deletedAttachmentIDs []uuid.UUID
 }
 
 func (f *fakeRuleStore) CreateRule(_ context.Context, rule store.Rule) error {
@@ -426,7 +430,18 @@ func (f *fakeRuleStore) ListRulesByAgent(context.Context, uuid.UUID) ([]store.Ru
 func (f *fakeRuleStore) ListRulesByEnvironment(context.Context, uuid.UUID) ([]store.Rule, error) {
 	return f.rulesByEnvironment, nil
 }
-func (f *fakeRuleStore) DeleteRule(context.Context, uuid.UUID) error { return nil }
+func (f *fakeRuleStore) DeleteRule(_ context.Context, id uuid.UUID) error {
+	f.deletedRuleIDs = append(f.deletedRuleIDs, id)
+	return nil
+}
+
+func (f *fakeRuleStore) ListRulesByOrganization(context.Context, uuid.UUID) ([]store.Rule, error) {
+	return f.orgRules, nil
+}
+
+func (f *fakeRuleStore) ListAttachmentsByOrganization(context.Context, uuid.UUID) ([]store.Attachment, error) {
+	return f.orgAttachments, nil
+}
 func (f *fakeRuleStore) CountAttachmentsByRule(context.Context, uuid.UUID) (int32, error) {
 	return 0, nil
 }
@@ -466,7 +481,10 @@ func (f *fakeRuleStore) ListAttachments(context.Context, uuid.UUID, *uuid.UUID, 
 	f.listAttachmentsCalls++
 	return store.AttachmentListResult{}, nil
 }
-func (f *fakeRuleStore) DeleteAttachment(context.Context, uuid.UUID) error { return nil }
+func (f *fakeRuleStore) DeleteAttachment(_ context.Context, id uuid.UUID) error {
+	f.deletedAttachmentIDs = append(f.deletedAttachmentIDs, id)
+	return nil
+}
 func (f *fakeRuleStore) CountRulesReferencingSecret(context.Context, uuid.UUID) (int32, []uuid.UUID, error) {
 	return 0, nil, nil
 }
@@ -583,4 +601,59 @@ type fakeSecretsClient struct{}
 
 func (fakeSecretsClient) ResolveSecretExists(context.Context, *secretsv1.ResolveSecretExistsRequest, ...grpc.CallOption) (*secretsv1.ResolveSecretExistsResponse, error) {
 	return &secretsv1.ResolveSecretExistsResponse{Exists: true}, nil
+}
+
+func TestDeleteOrganizationResourcesRemovesAttachmentsThenRules(t *testing.T) {
+	ruleID, attachmentID := uuid.New(), uuid.New()
+	storeFake := &fakeRuleStore{
+		orgAttachments: []store.Attachment{{ID: attachmentID, RuleID: ruleID, OpenZitiDialPolicyID: "policy-id"}},
+		orgRules:       []store.Rule{{ID: ruleID, OpenZitiServiceID: "ziti-service-id"}},
+	}
+	zitiFake := &fakeZitiManagementClient{}
+	srv := New(Options{Store: storeFake, AuthorizationClient: &fakeAuthorizationClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
+
+	// Internal RPC: no identity in the context, and none required.
+	_, err := srv.DeleteOrganizationResources(context.Background(), &egressv1.DeleteOrganizationResourcesRequest{
+		OrganizationId: uuid.New().String(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Attachments first: a rule with attachments refuses to be deleted, which
+	// is the invariant DeleteEgressRule enforces.
+	if len(storeFake.deletedAttachmentIDs) != 1 || storeFake.deletedAttachmentIDs[0] != attachmentID {
+		t.Fatalf("expected the attachment deleted, got %v", storeFake.deletedAttachmentIDs)
+	}
+	if len(storeFake.deletedRuleIDs) != 1 || storeFake.deletedRuleIDs[0] != ruleID {
+		t.Fatalf("expected the rule deleted, got %v", storeFake.deletedRuleIDs)
+	}
+	if zitiFake.deleteServicePolicyCalls != 1 {
+		t.Fatalf("expected the dial policy deleted, got %d calls", zitiFake.deleteServicePolicyCalls)
+	}
+}
+
+func TestDeleteOrganizationResourcesIsIdempotent(t *testing.T) {
+	storeFake := &fakeRuleStore{}
+	srv := New(Options{Store: storeFake, AuthorizationClient: &fakeAuthorizationClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: &fakeZitiManagementClient{}})
+
+	// The cascade retries a step it is unsure finished, so an empty
+	// organization has to succeed rather than fail.
+	req := &egressv1.DeleteOrganizationResourcesRequest{OrganizationId: uuid.New().String()}
+	if _, err := srv.DeleteOrganizationResources(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(storeFake.deletedRuleIDs) != 0 {
+		t.Fatalf("expected nothing deleted, got %v", storeFake.deletedRuleIDs)
+	}
+}
+
+func TestDeleteOrganizationResourcesRejectsInvalidOrganizationID(t *testing.T) {
+	srv := New(Options{Store: &fakeRuleStore{}, AuthorizationClient: &fakeAuthorizationClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: &fakeZitiManagementClient{}})
+	_, err := srv.DeleteOrganizationResources(context.Background(), &egressv1.DeleteOrganizationResourcesRequest{
+		OrganizationId: "not-a-uuid",
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v", err)
+	}
 }

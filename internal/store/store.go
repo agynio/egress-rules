@@ -17,6 +17,9 @@ import (
 const (
 	ruleColumns       = `id, organization_id, name, description, matcher, effect, upstream_tls, openziti_service_id, created_at, updated_at`
 	attachmentColumns = `id, rule_id, agent_id, environment_id, openziti_dial_policy_id, created_at, updated_at`
+	// The organization lives on the rule, so listing an organization's
+	// attachments joins and needs the columns qualified.
+	prefixedAttachmentColumns = `a.id, a.rule_id, a.agent_id, a.environment_id, a.openziti_dial_policy_id, a.created_at, a.updated_at`
 )
 
 // Store persists egress rules and attachments.
@@ -166,6 +169,42 @@ func (s *Store) ListAllRules(ctx context.Context) ([]Rule, error) {
 		return nil, fmt.Errorf("list all egress rules: %w", err)
 	}
 	return rules, nil
+}
+
+// ListRulesByOrganization returns every rule the organization holds,
+// unpaginated. The teardown needs all of them, and each carries an OpenZiti
+// service that has to come down with the row.
+func (s *Store) ListRulesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Rule, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT %s FROM egress_rules WHERE organization_id = $1 ORDER BY id ASC`, ruleColumns), organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by organization: %w", err)
+	}
+	defer rows.Close()
+	rules, err := collectRules(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rules by organization: %w", err)
+	}
+	return rules, nil
+}
+
+// ListAttachmentsByOrganization returns every attachment on the organization's
+// rules, unpaginated. Each carries an OpenZiti dial policy.
+func (s *Store) ListAttachmentsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Attachment, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s
+		FROM egress_rule_attachments a
+		JOIN egress_rules r ON r.id = a.rule_id
+		WHERE r.organization_id = $1
+		ORDER BY a.id ASC`, prefixedAttachmentColumns), organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rule attachments by organization: %w", err)
+	}
+	defer rows.Close()
+	attachments, err := collectAttachments(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list egress rule attachments by organization: %w", err)
+	}
+	return attachments, nil
 }
 
 func (s *Store) ListRulesByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]Rule, error) {

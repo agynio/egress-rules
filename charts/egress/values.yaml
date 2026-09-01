@@ -192,3 +192,7 @@ internalAuthorizationPolicy:
         - /agynio.api.egress.v1.EgressRulesService/ListAttachedRuleDomains
       serviceAccounts:
         - name: networks
+    - paths:
+        - /agynio.api.egress.v1.EgressRulesService/DeleteOrganizationResources
+      serviceAccounts:
+        - name: organizations

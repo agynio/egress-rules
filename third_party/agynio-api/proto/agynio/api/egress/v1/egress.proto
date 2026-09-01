@@ -27,6 +27,8 @@ service EgressRulesService {
   rpc CountRulesReferencingPrivateResource(CountRulesReferencingPrivateResourceRequest) returns (CountRulesReferencingPrivateResourceResponse);
   rpc ListMediatedPrivateResources(ListMediatedPrivateResourcesRequest) returns (ListMediatedPrivateResourcesResponse);
   rpc ListAttachedRuleDomains(ListAttachedRuleDomainsRequest) returns (ListAttachedRuleDomainsResponse);
+
+  rpc DeleteOrganizationResources(DeleteOrganizationResourcesRequest) returns (DeleteOrganizationResourcesResponse);
 }
 
 // Metadata shared by egress resources.
@@ -274,3 +276,9 @@ message ListAttachedRuleDomainsRequest {
 message ListAttachedRuleDomainsResponse {
   repeated AttachedRuleDomain domains = 1;
 }
+
+message DeleteOrganizationResourcesRequest {
+  string organization_id = 1;
+}
+
+message DeleteOrganizationResourcesResponse {}
